@@ -5,8 +5,6 @@ import { Plus, Minus, Search, Camera, AlertTriangle, Package, Trash2, X, Eye, Sp
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-
 const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const CATEGORIES = ['ทั้งหมด', 'ห้องน้ำและทำความสะอาด', 'ห้องครัวและของกิน', 'เครื่องสำอาง', 'อื่นๆ'];
@@ -64,7 +62,7 @@ export default function Home() {
     });
   };
 
-  // สแกนรูปด้วย AI (ส่ง Key ผ่าน Header x-goog-api-key)
+  // สแกนรูปผ่าน Server Route (/api/gemini)
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -75,32 +73,16 @@ export default function Home() {
       setImagePreview(base64Image);
       setFormData((prev) => ({ ...prev, image_url: base64Image }));
 
-      if (!geminiApiKey) {
-        alert('⚠️ ไม่พบคีย์ Gemini API กรุณาตรวจสอบการตั้งค่าบน Vercel');
-        setAiProcessing(false);
-        return;
-      }
-
       const pureBase64 = base64Image.split(',')[1];
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
+      const res = await fetch('/api/gemini', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': geminiApiKey.trim()
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: 'อ่านฉลากสินค้านี้แล้วตอบเป็น JSON ภาษาไทยแบบนี้เท่านั้น: {"name": "ชื่อสินค้า", "brand": "ยี่ห้อ", "category": "ห้องน้ำและทำความสะอาด หรือ ห้องครัวและของกิน หรือ เครื่องสำอาง หรือ อื่นๆ"}' },
-              { inline_data: { mime_type: 'image/webp', data: pureBase64 } }
-            ]
-          }]
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'scan-image', image: pureBase64 })
       });
 
       const aiData = await res.json();
       if (aiData.error) {
-        alert(`⚠️ AI สแกนไม่สำเร็จ (${aiData.error.message}) คุณสามารถกรอกข้อมูลเองได้เลยครับ`);
+        alert(`⚠️ AI สแกนไม่สำเร็จ (${aiData.error.message || 'โปรดตรวจสอบคีย์ Gemini'})`);
         return;
       }
 
@@ -121,41 +103,28 @@ export default function Home() {
         alert('✨ AI อ่านข้อมูลจากรูปภาพสำเร็จ!');
       }
     } catch (err) {
-      alert('⚠️ เกิดข้อผิดพลาดในการสแกนรูปภาพ คุณสามารถกรอกข้อมูลเองได้เลยครับ');
+      alert('⚠️ เกิดข้อผิดพลาดในการสแกนรูปภาพ สามารถกรอกข้อมูลเองได้เลยครับ');
     } finally {
       setAiProcessing(false);
     }
   };
 
-  // สั่งงานด่วน (ส่ง Key ผ่าน Header x-goog-api-key)
+  // สั่งงานด่วนผ่าน Server Route (/api/gemini)
   const handleQuickCommand = async (e) => {
     e.preventDefault();
     if (!quickCmd.trim()) return;
 
     setCmdProcessing(true);
     try {
-      if (!geminiApiKey) {
-        alert('⚠️ ไม่พบคีย์ Gemini API');
-        setCmdProcessing(false);
-        return;
-      }
-
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
+      const res = await fetch('/api/gemini', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': geminiApiKey.trim()
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: `แปลประโยคนี้: "${quickCmd}" เป็น JSON สั้นๆ: {"action": "DEDUCT" หรือ "ADD", "target_name": "ชื่อสินค้าที่ใกล้เคียง", "quantity": จำนวนเลข} หากมีคำว่า 'ใช้/หมด' ให้ action=DEDUCT หากมีคำว่า 'ซื้อ/เติม' ให้ action=ADD` }]
-          }]
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'quick-command', prompt: quickCmd })
       });
 
       const aiData = await res.json();
       if (aiData.error) {
-        alert(`⚠️ AI สั่งงานไม่สำเร็จ (${aiData.error.message})`);
+        alert(`⚠️ AI สั่งงานไม่สำเร็จ (${aiData.error.message || 'โปรดตรวจสอบคีย์ Gemini'})`);
         return;
       }
 
