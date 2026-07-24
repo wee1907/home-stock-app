@@ -10,7 +10,6 @@ export async function POST(req) {
     }
 
     let messages = [];
-    // อัปเดตชื่อโมเดลเป็นสเปกใหม่ล่าสุดของ Groq (llama-3.2-90b-vision-preview)
     let model = 'llama-3.2-90b-vision-preview';
 
     if (type === 'scan-image') {
@@ -18,7 +17,7 @@ export async function POST(req) {
         {
           role: 'user',
           content: [
-            { type: 'text', text: 'อ่านฉลากสินค้านี้แล้วตอบเป็น JSON ภาษาไทยแบบนี้เท่านั้น ห้ามมีคำอื่น: {"name": "ชื่อสินค้า", "brand": "ยี่ห้อ", "category": "ห้องน้ำและทำความสะอาด หรือ ห้องครัวและของกิน หรือ เครื่องสำอาง หรือ อื่นๆ"}' },
+            { type: 'text', text: 'อ่านฉลากสินค้านี้แล้วตอบเป็น JSON ภาษาไทยแบบนี้เท่านั้น ห้ามมี markdown: {"name": "ชื่อสินค้า", "brand": "ยี่ห้อ", "category": "ห้องน้ำและทำความสะอาด หรือ ห้องครัวและของกิน หรือ เครื่องสำอาง หรือ อื่นๆ", "unit": "ขวด หรือ ถุง หรือ ก้อน หรือ กล่อง หรือ แพ็ค", "size": "เล็ก หรือ กลาง หรือ ใหญ่ หรือ ถุงเติม"}' },
             { type: 'image_url', image_url: { url: `data:image/webp;base64,${image}` } }
           ]
         }
@@ -28,7 +27,7 @@ export async function POST(req) {
       messages = [
         {
           role: 'user',
-          content: `แปลประโยคนี้: "${prompt}" เป็น JSON ภาษาไทยแบบนี้เท่านั้น ห้ามมีคำอื่น: {"action": "DEDUCT" หรือ "ADD", "target_name": "ชื่อสินค้าที่ใกล้เคียง", "quantity": จำนวนเลข} หากมีคำว่า 'ใช้/หมด' ให้ action=DEDUCT หากมีคำว่า 'ซื้อ/เติม' ให้ action=ADD`
+          content: `แปลประโยคสั่งงานสต๊อกนี้: "${prompt}" เป็น JSON ภาษาไทยแบบนี้เท่านั้น ห้ามมี markdown: {"action": "DEDUCT" หรือ "ADD", "target_name": "ชื่อสินค้า", "brand": "ยี่ห้อถ้ามี", "size": "ขนาดถ้ามี", "quantity": จำนวนเลข}`
         }
       ];
     }
@@ -42,12 +41,11 @@ export async function POST(req) {
       body: JSON.stringify({
         model: model,
         messages: messages,
-        temperature: 0.2
+        temperature: 0.1
       })
     });
 
     const data = await res.json();
-
     if (data.error) {
       return NextResponse.json({ error: { message: data.error.message } }, { status: 400 });
     }
