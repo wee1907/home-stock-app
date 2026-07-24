@@ -6,7 +6,7 @@ export async function POST(req) {
     const apiKey = (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
 
     if (!apiKey) {
-      return NextResponse.json({ error: { message: 'ไม่พบคีย์ Gemini API บนระบบ' } }, { status: 400 });
+      return NextResponse.json({ error: { message: 'ไม่พบคีย์ Gemini API บน Vercel' } }, { status: 400 });
     }
 
     let contents = [];
@@ -24,13 +24,22 @@ export async function POST(req) {
       }];
     }
 
-    // ยิงแบบ Server-to-Server Bypasses Browser CORS
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
+    // ตั้งค่า Header ให้รองรับรหัสแบบ AQ. (OAuth2 Bearer Token)
+    const headers = { 'Content-Type': 'application/json' };
+
+    if (apiKey.startsWith('AQ')) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    } else {
+      headers['x-goog-api-key'] = apiKey;
+    }
+
+    const url = apiKey.startsWith('AQ')
+      ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`
+      : `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
+      headers,
       body: JSON.stringify({ contents })
     });
 
