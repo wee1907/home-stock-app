@@ -1,5 +1,3 @@
-import './globals.css';
-
 export const metadata = {
   title: 'Home Stock - ระบบสต๊อกของใช้ในบ้าน',
   description: 'จัดการของใช้ในบ้าน สะดวก รวดเร็ว',
