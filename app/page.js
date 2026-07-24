@@ -8,6 +8,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const CATEGORIES = ['ทั้งหมด', 'ห้องน้ำและทำความสะอาด', 'ห้องครัวและของกิน', 'เครื่องสำอาง', 'อื่นๆ'];
+const UNITS = ['ขวด', 'ถุง', 'ก้อน', 'กล่อง', 'กระป๋อง', 'แพ็ค', 'ชิ้น', 'ซอง'];
+const SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้'];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -25,6 +27,8 @@ export default function Home() {
     name: '',
     brand: '',
     category: 'ห้องน้ำและทำความสะอาด',
+    unit: 'ขวด',
+    size: 'กลาง',
     quantity: 1,
     min_threshold: 1,
     image_url: '',
@@ -62,7 +66,7 @@ export default function Home() {
     });
   };
 
-  // สแกนรูปผ่าน Server Route (/api/gemini)
+  // สแกนรูปถ่ายด้วย AI
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -82,34 +86,36 @@ export default function Home() {
 
       const aiData = await res.json();
       if (aiData.error) {
-        alert(`⚠️ AI สแกนไม่สำเร็จ (${aiData.error.message || 'โปรดตรวจสอบคีย์ Gemini'})`);
+        alert(`⚠️ AI สแกนไม่สำเร็จ (${aiData.error.message}) คุณสามารถกรอกข้อมูลเองได้เลยครับ`);
         return;
       }
 
       const textResponse = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+      const cleanJsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
+
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        const validCategory = ['ห้องน้ำและทำความสะอาด', 'ห้องครัวและของกิน', 'เครื่องสำอาง'].includes(parsed.category)
-          ? parsed.category
-          : 'อื่นๆ';
+        const validCategory = CATEGORIES.includes(parsed.category) ? parsed.category : 'อื่นๆ';
 
         setFormData((prev) => ({
           ...prev,
           name: parsed.name || prev.name,
           brand: parsed.brand || prev.brand,
           category: validCategory,
+          unit: UNITS.includes(parsed.unit) ? parsed.unit : 'ขวด',
+          size: SIZES.includes(parsed.size) ? parsed.size : 'กลาง',
         }));
-        alert('✨ AI อ่านข้อมูลจากรูปภาพสำเร็จ!');
+        alert('✨ AI อ่านข้อมูล ยี่ห้อ ขนาด และหน่วยนับ เรียบร้อย!');
       }
     } catch (err) {
-      alert('⚠️ เกิดข้อผิดพลาดในการสแกนรูปภาพ สามารถกรอกข้อมูลเองได้เลยครับ');
+      alert('⚠️ ไม่สามารถสแกนรูปภาพได้ แต่รูปภาพถูกบันทึกแล้ว สามารถกรอกข้อมูลเองได้ครับ');
     } finally {
       setAiProcessing(false);
     }
   };
 
-  // สั่งงานด่วนผ่าน Server Route (/api/gemini)
+  // สั่งงานด่วน
   const handleQuickCommand = async (e) => {
     e.preventDefault();
     if (!quickCmd.trim()) return;
@@ -124,21 +130,29 @@ export default function Home() {
 
       const aiData = await res.json();
       if (aiData.error) {
-        alert(`⚠️ AI สั่งงานไม่สำเร็จ (${aiData.error.message || 'โปรดตรวจสอบคีย์ Gemini'})`);
+        alert(`⚠️ AI สั่งงานไม่สำเร็จ (${aiData.error.message})`);
         return;
       }
 
       const textResponse = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+      const cleanJsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
 
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        const matchedProduct = products.find((p) => p.name.includes(parsed.target_name) || parsed.target_name.includes(p.name));
+        
+        // ค้นหาแบบละเอียดยี่ห้อ และขนาด
+        const matchedProduct = products.find((p) => {
+          const matchName = p.name.includes(parsed.target_name) || parsed.target_name.includes(p.name);
+          const matchBrand = !parsed.brand || (p.brand && p.brand.includes(parsed.brand));
+          const matchSize = !parsed.size || (p.size && p.size.includes(parsed.size));
+          return matchName && matchBrand && matchSize;
+        }) || products.find((p) => p.name.includes(parsed.target_name) || parsed.target_name.includes(p.name));
 
         if (matchedProduct) {
           const change = parsed.action === 'DEDUCT' ? -Math.abs(parsed.quantity || 1) : Math.abs(parsed.quantity || 1);
           await updateQuantity(matchedProduct.id, matchedProduct.quantity + change);
-          alert(`✅ ${parsed.action === 'DEDUCT' ? 'ตัดสต๊อก' : 'เติมสต๊อก'} "${matchedProduct.name}" จำนวน ${Math.abs(change)} เรียบร้อย!`);
+          alert(`✅ ${parsed.action === 'DEDUCT' ? 'ตัดสต๊อก' : 'เติมสต๊อก'} "${matchedProduct.name} (${matchedProduct.brand || ''} ${matchedProduct.size || ''})" จำนวน ${Math.abs(change)} ${matchedProduct.unit || 'ชิ้น'} เรียบร้อย!`);
           setQuickCmd('');
         } else {
           alert(`❌ ไม่พบสินค้าชื่อใกล้เคียงกับ "${parsed.target_name}" ในระบบ`);
@@ -153,8 +167,9 @@ export default function Home() {
     }
   };
 
+  // ปรับจำนวนสต๊อก (พิมพ์เลขได้อิสระ)
   const updateQuantity = async (id, newQty) => {
-    const finalQty = Math.max(0, newQty);
+    const finalQty = isNaN(newQty) ? 0 : Math.max(0, newQty);
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, quantity: finalQty } : p)));
     if (selectedProduct && selectedProduct.id === id) {
       setSelectedProduct((prev) => ({ ...prev, quantity: finalQty }));
@@ -162,8 +177,9 @@ export default function Home() {
     await supabase.from('products').update({ quantity: finalQty, dont_remind: false }).eq('id', id);
   };
 
+  // ลบสินค้า
   const handleDeleteProduct = async (id, name) => {
-    if (window.confirm(`คุณต้องการลบ "${name}" ออกจากระบบใช่ไหม?`)) {
+    if (window.confirm(`คุณต้องการลบ "${name}" ออกจากสต๊อกใช่ไหม?`)) {
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (!error) {
         setProducts((prev) => prev.filter((p) => p.id !== id));
@@ -194,14 +210,16 @@ export default function Home() {
       setProducts([data[0], ...products]);
       setShowAddModal(false);
       setImagePreview('');
-      setFormData({ name: '', brand: '', category: 'ห้องน้ำและทำความสะอาด', quantity: 1, min_threshold: 1, image_url: '' });
+      setFormData({ name: '', brand: '', category: 'ห้องน้ำและทำความสะอาด', unit: 'ขวด', size: 'กลาง', quantity: 1, min_threshold: 1, image_url: '' });
       alert('🎉 บันทึกสินค้าเข้าสต๊อกเรียบร้อย!');
     }
   };
 
   const filteredProducts = products.filter((p) => {
     const matchesTab = activeTab === 'ทั้งหมด' ? true : activeTab === 'ใกล้หมด' ? p.quantity <= p.min_threshold : p.category === activeTab;
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                          (p.size && p.size.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesTab && matchesSearch;
   });
 
@@ -213,7 +231,7 @@ export default function Home() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">🏡 Home Stock</h1>
-          <p className="text-xs text-slate-500">จัดการของใช้ในบ้าน ง่าย สะดวก ไว</p>
+          <p className="text-xs text-slate-500">จัดการของใช้ในบ้าน ละเอียด ครบถ้วน</p>
         </div>
         <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2 text-sm transition">
           <Plus size={18} /> เพิ่มของเข้าบ้าน
@@ -225,7 +243,7 @@ export default function Home() {
         <div className="relative flex items-center">
           <input
             type="text"
-            placeholder="💬 พิมพ์สั่งด่วน เช่น 'ใช้น้ำยาล้างจาน 1 ถุง'..."
+            placeholder="💬 เช่น 'ใช้น้ำยาล้างจาน ซันไลต์ ถุงเล็ก 1 ถุง'..."
             value={quickCmd}
             onChange={(e) => setQuickCmd(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-4 pr-24 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -245,7 +263,9 @@ export default function Home() {
           <div className="space-y-2">
             {lowStockItems.map((item) => (
               <div key={item.id} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-amber-100 text-xs">
-                <span className="font-medium text-slate-700">{item.brand ? `[${item.brand}] ` : ''}{item.name} (เหลือ {item.quantity})</span>
+                <span className="font-medium text-slate-700">
+                  {item.brand ? `[${item.brand}] ` : ''}{item.name} ({item.size || 'กลาง'}) — เหลือ {item.quantity} {item.unit || 'ชิ้น'}
+                </span>
                 <button onClick={() => dismissAlert(item.id)} className="text-slate-400 hover:text-slate-600 text-xs underline">
                   ไม่ต้องเตือนอีก
                 </button>
@@ -261,7 +281,7 @@ export default function Home() {
           <Search className="absolute left-3.5 top-3 text-slate-400" size={18} />
           <input
             type="text"
-            placeholder="ค้นหาชื่อสินค้า หรือยี่ห้อ..."
+            placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -309,24 +329,39 @@ export default function Home() {
               </div>
 
               <div onClick={() => setSelectedProduct(item)} className="flex-grow min-w-0 cursor-pointer">
-                <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block mb-1">{item.category}</span>
+                <div className="flex items-center gap-1 mb-0.5">
+                  <span className="text-[9px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">{item.category}</span>
+                  <span className="text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{item.size || 'กลาง'}</span>
+                </div>
                 <h3 className="font-semibold text-slate-800 text-sm truncate">{item.name}</h3>
-                <p className="text-xs text-slate-400 truncate">{item.brand || 'ไม่ระบุยี่ห้อ'}</p>
+                <p className="text-xs text-slate-400 truncate">{item.brand ? `ยี่ห้อ: ${item.brand}` : 'ไม่ระบุยี่ห้อ'}</p>
               </div>
 
-              <div className="flex flex-col items-end gap-2">
-                <button onClick={() => handleDeleteProduct(item.id, item.name)} className="text-slate-300 hover:text-red-500 p-1 transition">
-                  <Trash2 size={16} />
+              {/* Quantity Controls (พิมพ์เลขลบได้เลย) */}
+              <div className="flex flex-col items-end gap-1.5">
+                <button onClick={() => handleDeleteProduct(item.id, item.name)} className="text-slate-300 hover:text-red-500 transition">
+                  <Trash2 size={15} />
                 </button>
+
                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5">
                   <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 hover:bg-white rounded-md text-slate-600">
-                    <Minus size={14} />
+                    <Minus size={12} />
                   </button>
-                  <span className="w-6 text-center text-xs font-bold text-slate-700">{item.quantity}</span>
+                  
+                  {/* ช่องพิมพ์จำนวนตัวเลข */}
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.quantity}
+                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))}
+                    className="w-10 text-center text-xs font-bold bg-white border border-slate-200 rounded mx-0.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+
                   <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1 hover:bg-white rounded-md text-slate-600">
-                    <Plus size={14} />
+                    <Plus size={12} />
                   </button>
                 </div>
+                <span className="text-[10px] text-slate-400 font-medium">{item.unit || 'ชิ้น'}</span>
               </div>
             </div>
           ))}
@@ -350,17 +385,29 @@ export default function Home() {
             </div>
 
             <div>
-              <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">{selectedProduct.category}</span>
-              <h2 className="text-lg font-bold text-slate-800 mt-2">{selectedProduct.name}</h2>
+              <div className="flex gap-1.5 mb-1">
+                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{selectedProduct.category}</span>
+                <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">ขนาด: {selectedProduct.size || 'กลาง'}</span>
+              </div>
+              <h2 className="text-lg font-bold text-slate-800">{selectedProduct.name}</h2>
               <p className="text-sm text-slate-500">{selectedProduct.brand ? `ยี่ห้อ: ${selectedProduct.brand}` : 'ไม่ระบุยี่ห้อ'}</p>
             </div>
 
             <div className="flex justify-between items-center border-t border-slate-100 pt-3">
               <div>
                 <p className="text-xs text-slate-400">จำนวนคงเหลือ</p>
-                <p className="text-xl font-bold text-slate-800">{selectedProduct.quantity} ชิ้น/ขวด</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <input
+                    type="number"
+                    min="0"
+                    value={selectedProduct.quantity}
+                    onChange={(e) => updateQuantity(selectedProduct.id, parseInt(e.target.value))}
+                    className="w-16 text-lg font-bold border border-slate-300 rounded-xl px-2 py-1 text-center"
+                  />
+                  <span className="text-sm font-medium text-slate-600">{selectedProduct.unit || 'ชิ้น'}</span>
+                </div>
               </div>
-              <button onClick={() => handleDeleteProduct(selectedProduct.id, selectedProduct.name)} className="bg-red-50 text-red-600 hover:bg-red-100 font-medium px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition">
+              <button onClick={() => handleDeleteProduct(selectedProduct.id, selectedProduct.name)} className="bg-red-50 text-red-600 hover:bg-red-100 font-medium px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition">
                 <Trash2 size={16} /> ลบออกจากสต๊อก
               </button>
             </div>
@@ -407,6 +454,25 @@ export default function Home() {
                 <input type="text" value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })} className="w-full border rounded-xl p-2.5 focus:ring-2 focus:ring-emerald-500" placeholder="เช่น Sunlight" />
               </div>
 
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-medium text-slate-600 mb-1">ขนาด</label>
+                  <select value={formData.size} onChange={(e) => setFormData({ ...formData, size: e.target.value })} className="w-full border rounded-xl p-2.5">
+                    {SIZES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-600 mb-1">หน่วยนับ</label>
+                  <select value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} className="w-full border rounded-xl p-2.5">
+                    {UNITS.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-medium text-slate-600 mb-1">หมวดหมู่</label>
                 <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full border rounded-xl p-2.5">
@@ -419,7 +485,7 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block font-medium text-slate-600 mb-1">จำนวนที่ซื้อมา</label>
-                  <input type="number" min="1" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })} className="w-full border rounded-xl p-2.5" />
+                  <input type="number" min="0" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })} className="w-full border rounded-xl p-2.5 font-bold" />
                 </div>
                 <div>
                   <label className="block font-medium text-slate-600 mb-1">เตือนเมื่อเหลือต่ำกว่า</label>
