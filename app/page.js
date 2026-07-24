@@ -19,11 +19,10 @@ export default function Home() {
   const [quickCmd, setQuickCmd] = useState('');
   const [cmdProcessing, setCmdProcessing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null); // สำหรับดูรูปใหญ่/รายละเอียด
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [aiProcessing, setAiProcessing] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
 
-  // Form State
   const [formData, setFormData] = useState({
     name: '',
     brand: '',
@@ -44,7 +43,6 @@ export default function Home() {
     setLoading(false);
   };
 
-  // ย่อขนาดรูปภาพให้เหลือไฟล์เล็กมากๆ (<50KB)
   const compressImage = (file) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -66,7 +64,7 @@ export default function Home() {
     });
   };
 
-  // สแกนรูปด้วย AI (Gemini 1.5 Flash)
+  // สแกนรูปด้วย AI (ส่ง Key ผ่าน Header x-goog-api-key)
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -78,15 +76,18 @@ export default function Home() {
       setFormData((prev) => ({ ...prev, image_url: base64Image }));
 
       if (!geminiApiKey) {
-        alert('⚠️ ไม่พบคีย์ Gemini API กรุณาตรวจสอบการตั้งค่า');
+        alert('⚠️ ไม่พบคีย์ Gemini API กรุณาตรวจสอบการตั้งค่าบน Vercel');
         setAiProcessing(false);
         return;
       }
 
       const pureBase64 = base64Image.split(',')[1];
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiApiKey.trim()
+        },
         body: JSON.stringify({
           contents: [{
             parts: [
@@ -117,16 +118,16 @@ export default function Home() {
           brand: parsed.brand || prev.brand,
           category: validCategory,
         }));
-        alert('✨ AI ถอดข้อมูลจากรูปภาพเรียบร้อยแล้ว!');
+        alert('✨ AI อ่านข้อมูลจากรูปภาพสำเร็จ!');
       }
     } catch (err) {
-      alert('⚠️ เกิดข้อผิดพลาดในการสแกนรูปภาพ สามารถกรอกข้อมูลเองได้เลยครับ');
+      alert('⚠️ เกิดข้อผิดพลาดในการสแกนรูปภาพ คุณสามารถกรอกข้อมูลเองได้เลยครับ');
     } finally {
       setAiProcessing(false);
     }
   };
 
-  // สั่งงานด่วน
+  // สั่งงานด่วน (ส่ง Key ผ่าน Header x-goog-api-key)
   const handleQuickCommand = async (e) => {
     e.preventDefault();
     if (!quickCmd.trim()) return;
@@ -139,17 +140,25 @@ export default function Home() {
         return;
       }
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiApiKey.trim()
+        },
         body: JSON.stringify({
           contents: [{
-            parts: [{ text: `แปลประโยคนี้: "${quickCmd}" เป็น JSON สั้นๆ: {"action": "DEDUCT" หรือ "ADD", "target_name": "ชื่อสินค้าที่ใกล้เคียง", "quantity": จำนวนเลข} หากคำว่า 'ใช้/หมด' ให้ action=DEDUCT หากคำว่า 'ซื้อ/เติม' ให้ action=ADD` }]
+            parts: [{ text: `แปลประโยคนี้: "${quickCmd}" เป็น JSON สั้นๆ: {"action": "DEDUCT" หรือ "ADD", "target_name": "ชื่อสินค้าที่ใกล้เคียง", "quantity": จำนวนเลข} หากมีคำว่า 'ใช้/หมด' ให้ action=DEDUCT หากมีคำว่า 'ซื้อ/เติม' ให้ action=ADD` }]
           }]
         })
       });
 
       const aiData = await res.json();
+      if (aiData.error) {
+        alert(`⚠️ AI สั่งงานไม่สำเร็จ (${aiData.error.message})`);
+        return;
+      }
+
       const textResponse = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
 
@@ -175,7 +184,6 @@ export default function Home() {
     }
   };
 
-  // ปรับจำนวนสต๊อก
   const updateQuantity = async (id, newQty) => {
     const finalQty = Math.max(0, newQty);
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, quantity: finalQty } : p)));
@@ -185,7 +193,6 @@ export default function Home() {
     await supabase.from('products').update({ quantity: finalQty, dont_remind: false }).eq('id', id);
   };
 
-  // ลบสินค้า
   const handleDeleteProduct = async (id, name) => {
     if (window.confirm(`คุณต้องการลบ "${name}" ออกจากระบบใช่ไหม?`)) {
       const { error } = await supabase.from('products').delete().eq('id', id);
@@ -199,13 +206,11 @@ export default function Home() {
     }
   };
 
-  // ซ่อนการแจ้งเตือน
   const dismissAlert = async (id) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, dont_remind: true } : p)));
     await supabase.from('products').update({ dont_remind: true }).eq('id', id);
   };
 
-  // บันทึกสินค้าใหม่
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -225,7 +230,6 @@ export default function Home() {
     }
   };
 
-  // กรองสินค้าตามหมวดหมู่
   const filteredProducts = products.filter((p) => {
     const matchesTab = activeTab === 'ทั้งหมด' ? true : activeTab === 'ใกล้หมด' ? p.quantity <= p.min_threshold : p.category === activeTab;
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -324,7 +328,6 @@ export default function Home() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filteredProducts.map((item) => (
             <div key={item.id} className="bg-white border border-slate-100 rounded-2xl p-3.5 flex gap-3 items-center shadow-sm relative hover:border-emerald-200 transition">
-              {/* Product Image (กดเพื่อขยายรูป) */}
               <div onClick={() => setSelectedProduct(item)} className="w-16 h-16 bg-slate-100 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center border border-slate-100 cursor-pointer relative group">
                 {item.image_url ? (
                   <img src={item.image_url} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition" />
@@ -336,14 +339,12 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Product Info (กดเพื่อดูรายละเอียด) */}
               <div onClick={() => setSelectedProduct(item)} className="flex-grow min-w-0 cursor-pointer">
                 <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block mb-1">{item.category}</span>
                 <h3 className="font-semibold text-slate-800 text-sm truncate">{item.name}</h3>
                 <p className="text-xs text-slate-400 truncate">{item.brand || 'ไม่ระบุยี่ห้อ'}</p>
               </div>
 
-              {/* Quantity Controls & Delete */}
               <div className="flex flex-col items-end gap-2">
                 <button onClick={() => handleDeleteProduct(item.id, item.name)} className="text-slate-300 hover:text-red-500 p-1 transition">
                   <Trash2 size={16} />
@@ -363,7 +364,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modal ดูรูปใหญ่ / รายละเอียดสินค้า */}
+      {/* Modal ดูรูปใหญ่ */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl relative space-y-4">
@@ -371,7 +372,6 @@ export default function Home() {
               <X size={18} />
             </button>
 
-            {/* รูปขยายใหญ่ */}
             <div className="w-full h-56 bg-slate-100 rounded-2xl overflow-hidden border border-slate-100 flex items-center justify-center">
               {selectedProduct.image_url ? (
                 <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-contain bg-slate-900" />
@@ -410,7 +410,6 @@ export default function Home() {
               </button>
             </div>
 
-            {/* ปุ่มถ่ายรูป / สแกน AI */}
             <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-2xl p-4 text-center relative overflow-hidden">
               <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
               {imagePreview ? (
