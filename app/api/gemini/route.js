@@ -10,7 +10,8 @@ export async function POST(req) {
     }
 
     let messages = [];
-    let model = 'llama-3.2-11b-vision-preview'; // โมเดลสแกนรูปภาพจาก Meta
+    // อัปเดตชื่อโมเดลเป็นสเปกใหม่ล่าสุดของ Groq (llama-3.2-90b-vision-preview)
+    let model = 'llama-3.2-90b-vision-preview';
 
     if (type === 'scan-image') {
       messages = [
@@ -23,7 +24,7 @@ export async function POST(req) {
         }
       ];
     } else if (type === 'quick-command') {
-      model = 'llama-3.3-70b-versatile'; // โมเดลประมวลผลข้อความภาษาไทย
+      model = 'llama-3.3-70b-versatile';
       messages = [
         {
           role: 'user',
@@ -32,7 +33,6 @@ export async function POST(req) {
       ];
     }
 
-    // ยิงไปที่ GROQ AI (เร็วที่สุดในโลก และไม่มีปัญหาเรื่องคีย์ AQ)
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
