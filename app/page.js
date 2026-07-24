@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Plus, Minus, Search, Camera, AlertTriangle, Package, Trash2, X, Eye, Sparkles } from 'lucide-react';
+import { Plus, Minus, Search, Camera, AlertTriangle, Package, Trash2, X, Eye, Sparkles, Edit3 } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -19,6 +19,7 @@ export default function Home() {
   const [quickCmd, setQuickCmd] = useState('');
   const [cmdProcessing, setCmdProcessing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingId, setEditingId] = useState(null); // ID ของสินค้าที่กำลังแก้ไข
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [aiProcessing, setAiProcessing] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
@@ -66,7 +67,7 @@ export default function Home() {
     });
   };
 
-  // สแกนรูปถ่ายด้วย AI
+  // สแกนรูปด้วย AI และเติมลงช่องอัตโนมัติ
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -86,7 +87,7 @@ export default function Home() {
 
       const aiData = await res.json();
       if (aiData.error) {
-        alert(`⚠️ AI สแกนไม่สำเร็จ (${aiData.error.message}) คุณสามารถกรอกข้อมูลเองได้เลยครับ`);
+        alert(`⚠️ AI สแกนไม่สำเร็จ (${aiData.error.message}) สามารถกรอกข้อมูลเองได้เลยครับ`);
         return;
       }
 
@@ -106,16 +107,16 @@ export default function Home() {
           unit: UNITS.includes(parsed.unit) ? parsed.unit : 'ขวด',
           size: SIZES.includes(parsed.size) ? parsed.size : 'กลาง',
         }));
-        alert('✨ AI อ่านข้อมูล ยี่ห้อ ขนาด และหน่วยนับ เรียบร้อย!');
+        alert('✨ AI อ่านข้อมูล ยี่ห้อ ขนาด และชื่อสินค้า เรียบร้อยแล้ว!');
       }
     } catch (err) {
-      alert('⚠️ ไม่สามารถสแกนรูปภาพได้ แต่รูปภาพถูกบันทึกแล้ว สามารถกรอกข้อมูลเองได้ครับ');
+      alert('⚠️ ไม่สามารถถอดข้อมูลได้ แต่รูปภาพถูกบันทึกแล้ว สามารถกรอกข้อมูลเองได้ครับ');
     } finally {
       setAiProcessing(false);
     }
   };
 
-  // สั่งงานด่วน
+  // ภาษาพูดแชทสั่งงานด่วน (รองรับสั่งหลายอย่างพร้อมกัน)
   const handleQuickCommand = async (e) => {
     e.preventDefault();
     if (!quickCmd.trim()) return;
@@ -136,26 +137,34 @@ export default function Home() {
 
       const textResponse = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const cleanJsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-      const jsonMatch = cleanJsonStr.match(/\{[\s\S]*\}/);
+      const jsonMatch = cleanJsonStr.match(/\[[\s\S]*\]/) || cleanJsonStr.match(/\{[\s\S]*\}/);
 
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        
-        // ค้นหาแบบละเอียดยี่ห้อ และขนาด
-        const matchedProduct = products.find((p) => {
-          const matchName = p.name.includes(parsed.target_name) || parsed.target_name.includes(p.name);
-          const matchBrand = !parsed.brand || (p.brand && p.brand.includes(parsed.brand));
-          const matchSize = !parsed.size || (p.size && p.size.includes(parsed.size));
-          return matchName && matchBrand && matchSize;
-        }) || products.find((p) => p.name.includes(parsed.target_name) || parsed.target_name.includes(p.name));
+        let commands = JSON.parse(jsonMatch[0]);
+        if (!Array.isArray(commands)) commands = [commands];
 
-        if (matchedProduct) {
-          const change = parsed.action === 'DEDUCT' ? -Math.abs(parsed.quantity || 1) : Math.abs(parsed.quantity || 1);
-          await updateQuantity(matchedProduct.id, matchedProduct.quantity + change);
-          alert(`✅ ${parsed.action === 'DEDUCT' ? 'ตัดสต๊อก' : 'เติมสต๊อก'} "${matchedProduct.name} (${matchedProduct.brand || ''} ${matchedProduct.size || ''})" จำนวน ${Math.abs(change)} ${matchedProduct.unit || 'ชิ้น'} เรียบร้อย!`);
+        let successMessages = [];
+
+        for (const cmd of commands) {
+          const matchedProduct = products.find((p) => {
+            const matchName = p.name.includes(cmd.target_name) || cmd.target_name.includes(p.name);
+            const matchBrand = !cmd.brand || (p.brand && p.brand.includes(cmd.brand));
+            const matchSize = !cmd.size || (p.size && p.size.includes(cmd.size));
+            return matchName && matchBrand && matchSize;
+          }) || products.find((p) => p.name.includes(cmd.target_name) || cmd.target_name.includes(p.name));
+
+          if (matchedProduct) {
+            const change = cmd.action === 'DEDUCT' ? -Math.abs(cmd.quantity || 1) : Math.abs(cmd.quantity || 1);
+            await updateQuantity(matchedProduct.id, matchedProduct.quantity + change);
+            successMessages.push(`• ${cmd.action === 'DEDUCT' ? 'ตัด' : 'เติม'} "${matchedProduct.name}" (${Math.abs(change)} ${matchedProduct.unit || 'ชิ้น'})`);
+          }
+        }
+
+        if (successMessages.length > 0) {
+          alert(`✅ จัดการสต๊อกตามสั่งเรียบร้อย:\n${successMessages.join('\n')}`);
           setQuickCmd('');
         } else {
-          alert(`❌ ไม่พบสินค้าชื่อใกล้เคียงกับ "${parsed.target_name}" ในระบบ`);
+          alert('❌ ไม่พบรายการสินค้าตรงกับคำสั่งของคุณในสต๊อก');
         }
       } else {
         alert('⚠️ AI ไม่เข้าใจคำสั่ง ลองพิมพ์ใหม่อีกครั้งครับ');
@@ -167,7 +176,6 @@ export default function Home() {
     }
   };
 
-  // ปรับจำนวนสต๊อก (พิมพ์เลขได้อิสระ)
   const updateQuantity = async (id, newQty) => {
     const finalQty = isNaN(newQty) ? 0 : Math.max(0, newQty);
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, quantity: finalQty } : p)));
@@ -177,7 +185,6 @@ export default function Home() {
     await supabase.from('products').update({ quantity: finalQty, dont_remind: false }).eq('id', id);
   };
 
-  // ลบสินค้า
   const handleDeleteProduct = async (id, name) => {
     if (window.confirm(`คุณต้องการลบ "${name}" ออกจากสต๊อกใช่ไหม?`)) {
       const { error } = await supabase.from('products').delete().eq('id', id);
@@ -191,11 +198,47 @@ export default function Home() {
     }
   };
 
+  // เปิด Modal แก้ไขสินค้าเดิม
+  const handleEditClick = (product) => {
+    setEditingId(product.id);
+    setFormData({
+      name: product.name || '',
+      brand: product.brand || '',
+      category: product.category || 'ห้องน้ำและทำความสะอาด',
+      unit: product.unit || 'ขวด',
+      size: product.size || 'กลาง',
+      quantity: product.quantity ?? 1,
+      min_threshold: product.min_threshold ?? 1,
+      image_url: product.image_url || '',
+    });
+    setImagePreview(product.image_url || '');
+    setSelectedProduct(null);
+    setShowAddModal(true);
+  };
+
+  // เปิด Modal เพิ่มสินค้าใหม่
+  const handleOpenAddModal = () => {
+    setEditingId(null);
+    setFormData({
+      name: '',
+      brand: '',
+      category: 'ห้องน้ำและทำความสะอาด',
+      unit: 'ขวด',
+      size: 'กลาง',
+      quantity: 1,
+      min_threshold: 1,
+      image_url: '',
+    });
+    setImagePreview('');
+    setShowAddModal(true);
+  };
+
   const dismissAlert = async (id) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, dont_remind: true } : p)));
     await supabase.from('products').update({ dont_remind: true }).eq('id', id);
   };
 
+  // บันทึกการเพิ่ม หรือ แก้ไขสินค้า
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -203,15 +246,26 @@ export default function Home() {
       return;
     }
 
-    const { data, error } = await supabase.from('products').insert([formData]).select();
-    if (error) {
-      alert(`❌ ไม่สามารถบันทึกได้: ${error.message}`);
-    } else if (data) {
-      setProducts([data[0], ...products]);
-      setShowAddModal(false);
-      setImagePreview('');
-      setFormData({ name: '', brand: '', category: 'ห้องน้ำและทำความสะอาด', unit: 'ขวด', size: 'กลาง', quantity: 1, min_threshold: 1, image_url: '' });
-      alert('🎉 บันทึกสินค้าเข้าสต๊อกเรียบร้อย!');
+    if (editingId) {
+      // โหมดแก้ไข
+      const { error } = await supabase.from('products').update(formData).eq('id', editingId);
+      if (error) {
+        alert(`❌ แก้ไขไม่สำเร็จ: ${error.message}`);
+      } else {
+        setProducts((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...formData } : p)));
+        setShowAddModal(false);
+        alert('🎉 แก้ไขข้อมูลสินค้าเรียบร้อย!');
+      }
+    } else {
+      // โหมดเพิ่มใหม่
+      const { data, error } = await supabase.from('products').insert([formData]).select();
+      if (error) {
+        alert(`❌ บันทึกไม่สำเร็จ: ${error.message}`);
+      } else if (data) {
+        setProducts([data[0], ...products]);
+        setShowAddModal(false);
+        alert('🎉 บันทึกสินค้าใหม่เข้าสต๊อกเรียบร้อย!');
+      }
     }
   };
 
@@ -231,19 +285,19 @@ export default function Home() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">🏡 Home Stock</h1>
-          <p className="text-xs text-slate-500">จัดการของใช้ในบ้าน ละเอียด ครบถ้วน</p>
+          <p className="text-xs text-slate-500">จัดการของใช้ในบ้าน ง่าย สะดวก รวดเร็ว</p>
         </div>
-        <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2 text-sm transition">
+        <button onClick={handleOpenAddModal} className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2 text-sm transition">
           <Plus size={18} /> เพิ่มของเข้าบ้าน
         </button>
       </div>
 
-      {/* Quick Command Box */}
+      {/* Quick Command Box (สั่งแชทภาษาพูด) */}
       <form onSubmit={handleQuickCommand} className="mb-6">
         <div className="relative flex items-center">
           <input
             type="text"
-            placeholder="💬 เช่น 'ใช้น้ำยาล้างจาน ซันไลต์ ถุงเล็ก 1 ถุง'..."
+            placeholder="💬 พิมพ์แชทสั่ง เช่น 'หยิบซันไลต์ไปใช้ขวดนึง ซื้อบรีสมา 2 ถุง'..."
             value={quickCmd}
             onChange={(e) => setQuickCmd(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-4 pr-24 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -337,23 +391,29 @@ export default function Home() {
                 <p className="text-xs text-slate-400 truncate">{item.brand ? `ยี่ห้อ: ${item.brand}` : 'ไม่ระบุยี่ห้อ'}</p>
               </div>
 
-              {/* Quantity Controls (พิมพ์เลขลบได้เลย) */}
-              <div className="flex flex-col items-end gap-1.5">
-                <button onClick={() => handleDeleteProduct(item.id, item.name)} className="text-slate-300 hover:text-red-500 transition">
-                  <Trash2 size={15} />
-                </button>
+              {/* Quantity Controls + ปุ่มแก้ไข/ลบ */}
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-1">
+                  <button onClick={() => handleEditClick(item)} className="text-slate-300 hover:text-emerald-600 p-1 transition" title="แก้ไข">
+                    <Edit3 size={15} />
+                  </button>
+                  <button onClick={() => handleDeleteProduct(item.id, item.name)} className="text-slate-300 hover:text-red-500 p-1 transition" title="ลบ">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
 
                 <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-0.5">
                   <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 hover:bg-white rounded-md text-slate-600">
                     <Minus size={12} />
                   </button>
-                  
-                  {/* ช่องพิมพ์จำนวนตัวเลข */}
+
+                  {/* ช่องพิมพ์เลข (แตะทีเดียวไฮไลท์เลขเดิมทันที ไม่ต้องนั่งลบ) */}
                   <input
                     type="number"
                     min="0"
                     value={item.quantity}
-                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
                     className="w-10 text-center text-xs font-bold bg-white border border-slate-200 rounded mx-0.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
 
@@ -368,7 +428,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modal ดูรูปใหญ่ */}
+      {/* Modal ดูรูปใหญ่ / รายละเอียด */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl relative space-y-4">
@@ -401,26 +461,33 @@ export default function Home() {
                     type="number"
                     min="0"
                     value={selectedProduct.quantity}
-                    onChange={(e) => updateQuantity(selectedProduct.id, parseInt(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => updateQuantity(selectedProduct.id, parseInt(e.target.value) || 0)}
                     className="w-16 text-lg font-bold border border-slate-300 rounded-xl px-2 py-1 text-center"
                   />
                   <span className="text-sm font-medium text-slate-600">{selectedProduct.unit || 'ชิ้น'}</span>
                 </div>
               </div>
-              <button onClick={() => handleDeleteProduct(selectedProduct.id, selectedProduct.name)} className="bg-red-50 text-red-600 hover:bg-red-100 font-medium px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition">
-                <Trash2 size={16} /> ลบออกจากสต๊อก
-              </button>
+
+              <div className="flex gap-2">
+                <button onClick={() => handleEditClick(selectedProduct)} className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-medium px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1 transition">
+                  <Edit3 size={15} /> แก้ไข
+                </button>
+                <button onClick={() => handleDeleteProduct(selectedProduct.id, selectedProduct.name)} className="bg-red-50 text-red-600 hover:bg-red-100 font-medium px-3 py-2.5 rounded-xl text-xs flex items-center gap-1 transition">
+                  <Trash2 size={15} /> ลบ
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal บันทึกของเข้าบ้าน */}
+      {/* Modal บันทึก / แก้ไขสินค้า */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-800">📸 บันทึกของเข้าบ้าน</h2>
+              <h2 className="text-lg font-bold text-slate-800">{editingId ? '✏️ แก้ไขรายการสินค้า' : '📸 บันทึกของเข้าบ้าน'}</h2>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={20} />
               </button>
@@ -485,17 +552,33 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block font-medium text-slate-600 mb-1">จำนวนที่ซื้อมา</label>
-                  <input type="number" min="0" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })} className="w-full border rounded-xl p-2.5 font-bold" />
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.quantity}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+                    className="w-full border rounded-xl p-2.5 font-bold"
+                  />
                 </div>
                 <div>
                   <label className="block font-medium text-slate-600 mb-1">เตือนเมื่อเหลือต่ำกว่า</label>
-                  <input type="number" min="1" value={formData.min_threshold} onChange={(e) => setFormData({ ...formData, min_threshold: parseInt(e.target.value) || 1 })} className="w-full border rounded-xl p-2.5" />
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.min_threshold}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setFormData({ ...formData, min_threshold: parseInt(e.target.value) || 1 })}
+                    className="w-full border rounded-xl p-2.5"
+                  />
                 </div>
               </div>
 
               <div className="flex gap-2 pt-2">
                 <button type="button" onClick={() => setShowAddModal(false)} className="w-1/2 bg-slate-100 py-2.5 rounded-xl text-slate-600 font-medium">ยกเลิก</button>
-                <button type="submit" className="w-1/2 bg-emerald-600 text-white py-2.5 rounded-xl font-medium shadow-md">บันทึกสต๊อก</button>
+                <button type="submit" className="w-1/2 bg-emerald-600 text-white py-2.5 rounded-xl font-medium shadow-md">
+                  {editingId ? 'บันทึกการแก้ไข' : 'บันทึกสต๊อก'}
+                </button>
               </div>
             </form>
           </div>
