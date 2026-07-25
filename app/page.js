@@ -12,7 +12,7 @@ const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const DEFAULT_CATEGORIES = ['ทั้งหมด', 'ห้องครัวและของกิน', 'ห้องน้ำและทำความสะอาด', 'เครื่องสำอาง', 'อื่นๆ'];
 const DEFAULT_UNITS = ['ขวด', 'ถุง', 'ก้อน', 'กล่อง', 'กระป๋อง', 'แพ็ค', 'ชิ้น', 'ซอง', 'เส้น'];
-const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', 'สั้น', 'ยาว'];
+const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', '2 เมตร'];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -422,7 +422,6 @@ export default function Home() {
   return (
     <div className={`min-h-screen pb-24 transition-colors duration-200 ${darkMode ? 'bg-zinc-950 text-zinc-100 dark' : 'bg-slate-50 text-slate-800'}`}>
       
-      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800 px-4 py-3">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -449,7 +448,6 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-4 pt-4">
 
-        {/* PAGE 1: สต๊อกบ้าน */}
         {mainTab === 'stock' && (
           <div className="space-y-4">
             <form onSubmit={handleQuickCommand} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-3.5 shadow-xs">
@@ -587,7 +585,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* PAGE 2: เช็กราคา & วางแผนซื้อ */}
         {mainTab === 'price' && (
           <div className="space-y-4">
             <div className="flex bg-slate-200 dark:bg-zinc-800 p-1 rounded-2xl text-xs font-semibold">
@@ -693,7 +690,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* PAGE 3: ประวัติ & ถังขยะ */}
         {mainTab === 'history' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -745,7 +741,6 @@ export default function Home() {
 
       </main>
 
-      {/* MODAL: รายละเอียดสินค้า */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs relative">
@@ -778,7 +773,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL: บันทึก/แก้ไขสินค้า */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs">
@@ -867,7 +861,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL: การตั้งค่า */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto text-xs">
@@ -918,7 +911,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 py-2 z-30">
         <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
           <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 ${mainTab === 'stock' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
