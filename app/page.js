@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Plus, Minus, Search, Camera, AlertTriangle, Package, Trash2, X, Eye, Sparkles, Edit3, 
-  Pin, Settings, Sun, Moon, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock
+  Pin, Settings, Sun, Moon, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock, ArrowUpDown, Calendar
 } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,7 +12,7 @@ const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const DEFAULT_CATEGORIES = ['ทั้งหมด', 'ห้องครัวและของกิน', 'ห้องน้ำและทำความสะอาด', 'เครื่องสำอาง', 'อื่นๆ'];
 const DEFAULT_UNITS = ['ขวด', 'ถุง', 'ก้อน', 'กล่อง', 'กระป๋อง', 'แพ็ค', 'ชิ้น', 'ซอง', 'เส้น'];
-const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', 'ยาว'];
+const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', '2 เมตร'];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -22,10 +22,11 @@ export default function Home() {
   const [priceSubTab, setPriceSubTab] = useState('system');
   const [activeCategory, setActiveCategory] = useState('ทั้งหมด');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('created'); // 'created', 'low_stock', 'price_asc', 'price_desc'
   const [loading, setLoading] = useState(true);
   const [quickCmd, setQuickCmd] = useState('');
   const [cmdProcessing, setCmdProcessing] = useState(false);
-  const [darkMode, setDarkMode] = useState(true); // Default Dark Mode
+  const [darkMode, setDarkMode] = useState(true);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -438,11 +439,20 @@ export default function Home() {
     return sum + (needToBuy * (item.price || 0));
   }, 0);
 
-  const filteredProducts = products.filter(p => {
+  // การกรอง & จัดเรียงลำดับสินค้า (Sorting)
+  let filteredProducts = products.filter(p => {
     const matchCat = activeCategory === 'ทั้งหมด' || p.category === activeCategory;
     const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchCat && matchSearch;
   });
+
+  if (sortBy === 'low_stock') {
+    filteredProducts.sort((a, b) => (a.quantity - a.min_threshold) - (b.quantity - b.min_threshold));
+  } else if (sortBy === 'price_desc') {
+    filteredProducts.sort((a, b) => (b.price || 0) - (a.price || 0));
+  } else if (sortBy === 'price_asc') {
+    filteredProducts.sort((a, b) => (a.price || 0) - (b.price || 0));
+  }
 
   const pinnedProducts = products.filter(p => p.isPinned);
 
@@ -528,17 +538,31 @@ export default function Home() {
               </section>
             )}
 
-            {/* Search Bar & Category Filters */}
+            {/* Search Bar & Sorting */}
             <div className="space-y-3">
-              <div className="relative">
-                <Search size={16} className="absolute left-4 top-3.5 text-slate-400 dark:text-zinc-500" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs dark:text-zinc-100 dark:placeholder-zinc-500 shadow-xs focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 focus:outline-none"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-4 top-3.5 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs dark:text-zinc-100 dark:placeholder-zinc-500 shadow-xs focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Sorting Dropdown */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-zinc-300 dark:bg-zinc-800 focus:outline-none"
+                >
+                  <option value="created">🕒 ล่าสุด</option>
+                  <option value="low_stock">⚠️ ของใกล้หมดขึ้นก่อน</option>
+                  <option value="price_desc">💵 ราคา แพง-ถูก</option>
+                  <option value="price_asc">🏷️ ราคา ถูก-แพง</option>
+                </select>
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
@@ -602,7 +626,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Actions & Quantity Controls */}
+                      {/* Controls */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => togglePin(item.id)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
