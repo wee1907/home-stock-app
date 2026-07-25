@@ -12,7 +12,7 @@ const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const DEFAULT_CATEGORIES = ['ทั้งหมด', 'ห้องครัวและของกิน', 'ห้องน้ำและทำความสะอาด', 'เครื่องสำอาง', 'อื่นๆ'];
 const DEFAULT_UNITS = ['ขวด', 'ถุง', 'ก้อน', 'กล่อง', 'กระป๋อง', 'แพ็ค', 'ชิ้น', 'ซอง', 'เส้น'];
-const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', '2 เมตร'];
+const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', 'สั้น', 'ยาว'];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -60,6 +60,11 @@ export default function Home() {
     fetchLogs();
   }, []);
 
+  useEffect(() => {
+    if (darkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+  }, [darkMode]);
+
   const fetchProducts = async () => {
     setLoading(true);
     const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
@@ -75,7 +80,6 @@ export default function Home() {
     if (data) setLogs(data);
   };
 
-  // บันทึกประวัติ + ลิมิตไม่เกิน 500 รายการ (ข้อ 6)
   const logAction = async (productId, productName, actionType, qtyChanged) => {
     await supabase.from('usage_logs').insert([{
       product_id: productId,
@@ -84,7 +88,6 @@ export default function Home() {
       created_at: new Date().toISOString()
     }]);
 
-    // เช็กหากประวัติเกิน 500 ให้ลบอันเก่าที่สุดทิ้ง
     const { data: allLogs } = await supabase.from('usage_logs').select('id').order('created_at', { ascending: true });
     if (allLogs && allLogs.length > 500) {
       const excessCount = allLogs.length - 500;
@@ -312,7 +315,6 @@ export default function Home() {
     setShowAddModal(true);
   };
 
-  // เพิ่ม/ลบ ตัวเลือก Custom (ข้อ 2)
   const handleAddCustomOption = () => {
     const val = newOptionInput.value.trim();
     if (!val) return;
@@ -327,7 +329,6 @@ export default function Home() {
       if (itemToDelete === 'ทั้งหมด' || itemToDelete === 'อื่นๆ') return alert('ไม่สามารถลบหมวดหมู่นี้ได้');
       setCategories(categories.filter(c => c !== itemToDelete));
       if (activeCategory === itemToDelete) setActiveCategory('ทั้งหมด');
-      // ย้ายสินค้าในหมวดที่ลบไปอยู่หมวด "อื่นๆ" (ข้อ 2)
       await supabase.from('products').update({ category: 'อื่นๆ' }).eq('category', itemToDelete);
       fetchProducts();
     } else if (type === 'unit') {
@@ -353,7 +354,6 @@ export default function Home() {
     link.click();
   };
 
-  // สั่งพิมพ์รายงาน PDF สวยงาม (ข้อ 1)
   const exportToPDF = () => {
     const timeStr = new Date().toLocaleString('th-TH');
     const printWindow = window.open('', '_blank');
@@ -422,7 +422,7 @@ export default function Home() {
   return (
     <div className={`min-h-screen pb-24 transition-colors duration-200 ${darkMode ? 'bg-zinc-950 text-zinc-100 dark' : 'bg-slate-50 text-slate-800'}`}>
       
-      {/* 🟢 Header */}
+      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800 px-4 py-3">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -434,7 +434,6 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* โหมดมืด/สว่าง เปลี่ยนสีเป๊ะ (ข้อ 3) */}
             <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
@@ -450,7 +449,7 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-4 pt-4">
 
-        {/* ================= PAGE 1: สต๊อกบ้าน ================= */}
+        {/* PAGE 1: สต๊อกบ้าน */}
         {mainTab === 'stock' && (
           <div className="space-y-4">
             <form onSubmit={handleQuickCommand} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-3.5 shadow-xs">
@@ -588,7 +587,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ================= PAGE 2: เช็กราคา & วางแผนซื้อ ================= */}
+        {/* PAGE 2: เช็กราคา & วางแผนซื้อ */}
         {mainTab === 'price' && (
           <div className="space-y-4">
             <div className="flex bg-slate-200 dark:bg-zinc-800 p-1 rounded-2xl text-xs font-semibold">
@@ -694,7 +693,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ================= PAGE 3: ประวัติ & ถังขยะ (ข้อ 6) ================= */}
+        {/* PAGE 3: ประวัติ & ถังขยะ */}
         {mainTab === 'history' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -718,7 +717,6 @@ export default function Home() {
                       <p className="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString('th-TH')}</p>
                     </div>
                   </div>
-                  {/* ปุ่มลบประวัติเฉพาะบรรทัด (ข้อ 6) */}
                   <button onClick={() => deleteSingleLog(log.id)} className="text-slate-300 hover:text-red-500 p-1">
                     <X size={14} />
                   </button>
@@ -747,7 +745,7 @@ export default function Home() {
 
       </main>
 
-      {/* 👁️ MODAL: รายละเอียดสินค้า + ปุ่มกดแก้ไข/ปักหมุด/ลบ (ข้อ 4) */}
+      {/* MODAL: รายละเอียดสินค้า */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs relative">
@@ -765,7 +763,6 @@ export default function Home() {
               <p className="text-xs font-bold text-slate-700 dark:text-zinc-300">สต๊อกคงเหลือ: {selectedProduct.quantity} {selectedProduct.unit} (เกณฑ์ขั้นต่ำ {selectedProduct.min_threshold} {selectedProduct.unit})</p>
             </div>
 
-            {/* ปุ่มกด ปักหมุด, แก้ไข, ลบ ในหน้ารายละเอียด (ข้อ 4) */}
             <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
               <button onClick={() => togglePin(selectedProduct.id)} className={`flex-1 py-2 rounded-xl border flex items-center justify-center gap-1 font-bold ${selectedProduct.isPinned ? 'bg-amber-50 border-amber-200 text-amber-600' : 'border-slate-200 text-slate-600'}`}>
                 <Pin size={14} /> {selectedProduct.isPinned ? 'ปักหมุดอยู่' : 'ปักหมุด'}
@@ -781,7 +778,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* 📸 MODAL: บันทึก/แก้ไขสินค้า */}
+      {/* MODAL: บันทึก/แก้ไขสินค้า */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs">
@@ -870,7 +867,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ⚙️ MODAL: การตั้งค่า + สั่งพิมพ์ PDF & ลบตัวเลือก Custom (ข้อ 1 & 2) */}
+      {/* MODAL: การตั้งค่า */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto text-xs">
@@ -879,7 +876,6 @@ export default function Home() {
               <button onClick={() => setShowSettingsModal(false)} className="text-slate-400"><X size={20} /></button>
             </div>
 
-            {/* ส่งออก Excel & PDF (ข้อ 1) */}
             <div className="space-y-2">
               <h4 className="font-bold text-slate-500">📊 ส่งออกรายงาน (ประทับวันเวลาให้อัตโนมัติ)</h4>
               <div className="grid grid-cols-2 gap-2">
@@ -892,7 +888,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* เพิ่ม/ลบ ตัวเลือก Custom (ข้อ 2) */}
             <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
               <h4 className="font-bold text-slate-500">✏️ จัดการตัวเลือก (เพิ่ม/ลบ หมวดหมู่ ขนาด หน่วยนับ)</h4>
               <div className="flex gap-2 mb-2">
@@ -905,7 +900,6 @@ export default function Home() {
                 <button onClick={handleAddCustomOption} className="bg-emerald-600 text-white px-3 rounded-xl font-bold">+ เพิ่ม</button>
               </div>
 
-              <!-- รายการสำหรับกดลบตัวเลือกเดิม -->
               <div className="space-y-2 max-h-40 overflow-y-auto pt-1">
                 <p className="font-bold text-[10px] text-slate-400">รายการหมวดหมู่ที่มีอยู่ (กด ✕ เพื่อลบ):</p>
                 <div className="flex flex-wrap gap-1">
@@ -924,7 +918,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* 📱 Bottom Navigation Bar */}
+      {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 py-2 z-30">
         <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
           <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 ${mainTab === 'stock' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
