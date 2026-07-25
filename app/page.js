@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Plus, Minus, Search, Camera, AlertTriangle, Package, Trash2, X, Eye, Sparkles, Edit3, 
-  Pin, Settings, Sun, Moon, Share2, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock
+  Pin, Settings, Sun, Moon, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock
 } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -111,7 +111,6 @@ export default function Home() {
     });
   };
 
-  // AI สแกนรูปถ่ายแบบเงียบ
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -155,7 +154,6 @@ export default function Home() {
     }
   };
 
-  // AI แชทสั่งงานด่วนภาษาคน
   const handleQuickCommand = async (e) => {
     e.preventDefault();
     if (!quickCmd.trim()) return;
@@ -338,7 +336,7 @@ export default function Home() {
   return (
     <div className="min-h-screen pb-24 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100">
       
-      {/* Header */}
+      {/* 🟢 Header */}
       <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800 px-4 py-3">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -394,8 +392,8 @@ export default function Home() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {pinnedProducts.map(item => (
                     <div key={item.id} className="bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-2.5 shadow-xs flex items-center gap-2">
-                      <div onClick={() => setSelectedProduct(item)} className="w-9 h-9 bg-slate-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 text-lg cursor-pointer overflow-hidden">
-                        {item.image_url ? <img src={item.image_url} className="w-full h-full object-contain" /> : '📦'}
+                      <div onClick={() => setSelectedProduct(item)} className="w-9 h-9 bg-slate-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 text-lg cursor-pointer">
+                        {item.image_url ? <img src={item.image_url} className="w-full h-full object-contain rounded-xl" /> : '📦'}
                       </div>
                       <div className="flex-grow min-w-0">
                         <h4 className="font-bold text-xs truncate dark:text-zinc-100">{item.name}</h4>
@@ -522,13 +520,6 @@ export default function Home() {
                     <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">🛒 ยอดเงินรวมต้องเตรียมไปซื้อของ (ของใกล้หมด):</p>
                     <p className="text-2xl font-bold text-emerald-800 dark:text-emerald-300 mt-0.5">{totalBudgetNeeded} บาท</p>
                   </div>
-                  <button onClick={() => {
-                    const text = `🛒 รายการของใกล้หมดต้องซื้อเพิ่ม:\n` + lowStockItems.map(i => `• ${i.name} (${i.brand || ''}) ต้องซื้อ ${i.min_threshold - i.quantity + 1} ${i.unit}`).join('\n');
-                    navigator.clipboard.writeText(text);
-                    alert('คัดลอกลิสต์ส่งเข้า LINE เรียบร้อยแล้ว!');
-                  }} className="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center gap-1">
-                    <Share2 size={14} /> แชร์เข้า LINE
-                  </button>
                 </div>
 
                 <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3.5 space-y-3">
@@ -655,7 +646,7 @@ export default function Home() {
 
       </main>
 
-      {/* MODAL: รายละเอียดสินค้า */}
+      {/* 👁️ MODAL: รายละเอียดสินค้า */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs relative">
@@ -676,7 +667,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL: บันทึก/แก้ไขสินค้า */}
+      {/* 📸 MODAL: บันทึก/แก้ไขสินค้า */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs">
@@ -765,7 +756,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL: การตั้งค่า */}
+      {/* ⚙️ MODAL: การตั้งค่า */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto text-xs">
@@ -797,7 +788,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Bottom Navigation */}
+      {/* 📱 Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 py-2 z-30">
         <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
           <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 ${mainTab === 'stock' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
