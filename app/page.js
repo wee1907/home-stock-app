@@ -18,8 +18,8 @@ export default function Home() {
   const [products, setProducts] = useState([]);
   const [logs, setLogs] = useState([]);
   const [trashItems, setTrashItems] = useState([]);
-  const [mainTab, setMainTab] = useState('stock'); // 'stock', 'price', 'history'
-  const [priceSubTab, setPriceSubTab] = useState('system'); // 'system', 'temp'
+  const [mainTab, setMainTab] = useState('stock');
+  const [priceSubTab, setPriceSubTab] = useState('system');
   const [activeCategory, setActiveCategory] = useState('ทั้งหมด');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ export default function Home() {
     if (data) setLogs(data);
   };
 
-  const logAction = async (productId, productName, actionType, qtyChanged, note = '') => {
+  const logAction = async (productId, productName, actionType, qtyChanged) => {
     await supabase.from('usage_logs').insert([{
       product_id: productId,
       action_type: actionType,
@@ -111,7 +111,7 @@ export default function Home() {
     });
   };
 
-  // AI สแกนรูปถ่ายแบบเงียบ (Silent Scan)
+  // AI สแกนรูปถ่ายแบบเงียบ
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -295,7 +295,6 @@ export default function Home() {
     setShowAddModal(true);
   };
 
-  // จัดการเพิ่มตัวเลือก Custom Dropdown
   const handleAddCustomOption = () => {
     const val = newOptionInput.value.trim();
     if (!val) return;
@@ -306,7 +305,6 @@ export default function Home() {
     alert('✅ เพิ่มตัวเลือกเรียบร้อย');
   };
 
-  // ส่งออก Excel (.csv)
   const exportToExcel = () => {
     const timeStr = new Date().toLocaleString('th-TH');
     let csv = `\uFEFFรายงานสต๊อกของใช้ในบ้าน (ข้อมูล ณ วันที่: ${timeStr})\n\n`;
@@ -323,7 +321,6 @@ export default function Home() {
     link.click();
   };
 
-  // คำนวณยอดเงินซื้อของรวม
   const lowStockItems = products.filter(p => p.quantity <= p.min_threshold);
   const totalBudgetNeeded = lowStockItems.reduce((sum, item) => {
     const needToBuy = Math.max(1, item.min_threshold - item.quantity + 1);
@@ -339,77 +336,75 @@ export default function Home() {
   const pinnedProducts = products.filter(p => p.isPinned);
 
   return (
-    <div class="min-h-screen pb-24 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100">
+    <div className="min-h-screen pb-24 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100">
       
-      <!-- 🟢 Header -->
-      <header class="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800 px-4 py-3">
-        <div class="max-w-6xl mx-auto flex justify-between items-center">
-          <div class="flex items-center gap-2">
-            <span class="text-2xl">🏡</span>
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800 px-4 py-3">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏡</span>
             <div>
-              <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Home Stock</h1>
-              <p class="text-[10px] text-slate-400">ระบบจัดการของใช้ในบ้าน</p>
+              <h1 className="font-bold text-lg leading-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Home Stock</h1>
+              <p className="text-[10px] text-slate-400">ระบบจัดการของใช้ในบ้าน</p>
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
-            <button onClick={() => setDarkMode(!darkMode)} class="p-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button onClick={() => setShowSettingsModal(true)} class="p-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+            <button onClick={() => setShowSettingsModal(true)} className="p-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
               <Settings size={18} />
             </button>
-            <button onClick={() => openAddModal()} class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">
-              <Plus size={16} /> <span class="hidden sm:inline">เพิ่มของเข้าบ้าน</span>
+            <button onClick={() => openAddModal()} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">
+              <Plus size={16} /> <span className="hidden sm:inline">เพิ่มของเข้าบ้าน</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main class="max-w-6xl mx-auto px-4 pt-4">
+      <main className="max-w-6xl mx-auto px-4 pt-4">
 
-        <!-- ================= PAGE 1: สต๊อกบ้าน ================= -->
+        {/* PAGE 1: สต๊อกบ้าน */}
         {mainTab === 'stock' && (
-          <div class="space-y-4">
-            <!-- AI Command Box -->
-            <form onSubmit={handleQuickCommand} class="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-3.5 shadow-xs">
-              <div class="flex items-center gap-1.5 mb-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+          <div className="space-y-4">
+            <form onSubmit={handleQuickCommand} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-3.5 shadow-xs">
+              <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                 <Sparkles size={16} /> <span>AI พ่อบ้านอัจฉริยะ (สั่งงานด้วยภาษาพูด)</span>
               </div>
-              <div class="relative flex items-center">
+              <div className="relative flex items-center">
                 <input
                   type="text"
                   placeholder="💬 พิมพ์แชทสั่ง เช่น 'ใช้น้ำยาล้างจาน 1 ถุง' หรือ 'เพิ่มสายชาร์จ 2 เมตร 150 บาท'..."
                   value={quickCmd}
                   onChange={(e) => setQuickCmd(e.target.value)}
-                  class="w-full bg-slate-100 dark:bg-zinc-800 border-0 rounded-2xl py-2.5 pl-3.5 pr-20 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:text-white"
+                  className="w-full bg-slate-100 dark:bg-zinc-800 border-0 rounded-2xl py-2.5 pl-3.5 pr-20 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:text-white"
                 />
-                <button type="submit" disabled={cmdProcessing} class="absolute right-1.5 bg-slate-900 dark:bg-emerald-600 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-xl">
+                <button type="submit" disabled={cmdProcessing} className="absolute right-1.5 bg-slate-900 dark:bg-emerald-600 text-white text-[11px] font-medium px-3.5 py-1.5 rounded-xl">
                   {cmdProcessing ? 'กำลังสั่ง...' : 'สั่งงาน'}
                 </button>
               </div>
             </form>
 
-            <!-- ของใช้บ่อย (ปักหมุด) -->
             {pinnedProducts.length > 0 && (
-              <section class="space-y-2">
-                <div class="flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-zinc-300">
-                  <span class="text-amber-500">⭐</span><span>ของใช้บ่อยประจำบ้าน (ปักหมุดไว้)</span>
+              <section className="space-y-2">
+                <div className="flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-zinc-300">
+                  <span className="text-amber-500">⭐</span><span>ของใช้บ่อยประจำบ้าน (ปักหมุดไว้)</span>
                 </div>
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {pinnedProducts.map(item => (
-                    <div key={item.id} class="bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-2.5 shadow-xs flex items-center gap-2">
-                      <div onClick={() => setSelectedProduct(item)} class="w-9 h-9 bg-slate-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 text-lg cursor-pointer">
-                        {item.image_url ? <img src={item.image_url} class="w-full h-full object-contain rounded-xl" /> : '📦'}
+                    <div key={item.id} className="bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-2.5 shadow-xs flex items-center gap-2">
+                      <div onClick={() => setSelectedProduct(item)} className="w-9 h-9 bg-slate-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 text-lg cursor-pointer overflow-hidden">
+                        {item.image_url ? <img src={item.image_url} className="w-full h-full object-contain" /> : '📦'}
                       </div>
-                      <div class="flex-grow min-w-0">
-                        <h4 class="font-bold text-xs truncate dark:text-zinc-100">{item.name}</h4>
-                        <p class="text-[10px] text-slate-400 truncate">{item.brand} • {item.size}</p>
+                      <div className="flex-grow min-w-0">
+                        <h4 className="font-bold text-xs truncate dark:text-zinc-100">{item.name}</h4>
+                        <p className="text-[10px] text-slate-400 truncate">{item.brand} • {item.size}</p>
                       </div>
-                      <div class="flex items-center gap-0.5 bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-lg">
-                        <button onClick={() => updateQuantity(item.id, item.quantity - 1, item.name)} class="w-5 h-5 flex items-center justify-center text-xs font-bold bg-white dark:bg-zinc-700 rounded">-</button>
-                        <span class="text-xs font-bold px-1">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, item.quantity + 1, item.name)} class="w-5 h-5 flex items-center justify-center text-xs font-bold bg-white dark:bg-zinc-700 rounded">+</button>
+                      <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-lg">
+                        <button onClick={() => updateQuantity(item.id, item.quantity - 1, item.name)} className="w-5 h-5 flex items-center justify-center text-xs font-bold bg-white dark:bg-zinc-700 rounded">-</button>
+                        <span className="text-xs font-bold px-1">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, item.quantity + 1, item.name)} className="w-5 h-5 flex items-center justify-center text-xs font-bold bg-white dark:bg-zinc-700 rounded">+</button>
                       </div>
                     </div>
                   ))}
@@ -417,26 +412,24 @@ export default function Home() {
               </section>
             )}
 
-            <!-- Search & Filters -->
-            <div class="space-y-2.5">
-              <div class="relative">
-                <Search size={16} class="absolute left-3.5 top-3 text-slate-400" />
+            <div className="space-y-2.5">
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
                 <input
                   type="text"
                   placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  class="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2 pl-10 pr-4 text-xs dark:text-white"
+                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2 pl-10 pr-4 text-xs dark:text-white"
                 />
               </div>
 
-              <!-- Categories -->
-              <div class="flex gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+              <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
                 {categories.map(cat => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
-                    class={`px-3.5 py-1.5 rounded-xl whitespace-nowrap transition ${activeCategory === cat ? 'bg-emerald-600 text-white font-bold' : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400'}`}
+                    className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap transition ${activeCategory === cat ? 'bg-emerald-600 text-white font-bold' : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400'}`}
                   >
                     {cat}
                   </button>
@@ -444,67 +437,63 @@ export default function Home() {
               </div>
             </div>
 
-            <!-- Product Cards Grid -->
             {loading ? (
-              <div class="text-center py-12 text-slate-400 text-xs">กำลังโหลดสต๊อก...</div>
+              <div className="text-center py-12 text-slate-400 text-xs">กำลังโหลดสต๊อก...</div>
             ) : filteredProducts.length === 0 ? (
-              <div class="text-center py-12 bg-white dark:bg-zinc-900 rounded-2xl border border-dashed border-slate-200 dark:border-zinc-800 text-slate-400 text-xs">ไม่พบรายการสินค้า</div>
+              <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-2xl border border-dashed border-slate-200 dark:border-zinc-800 text-slate-400 text-xs">ไม่พบรายการสินค้า</div>
             ) : (
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
                 {filteredProducts.map(item => {
                   const needsRefill = item.quantity <= item.min_threshold;
                   const refillDiff = item.min_threshold - item.quantity + 1;
 
                   return (
-                    <div key={item.id} class="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3 shadow-xs flex gap-3 items-center relative">
-                      <!-- Photo -->
-                      <div onClick={() => setSelectedProduct(item)} class="w-16 h-16 bg-slate-100 dark:bg-zinc-800 rounded-xl flex-shrink-0 border border-slate-100 dark:border-zinc-800 flex items-center justify-center text-2xl cursor-pointer relative group overflow-hidden">
-                        {item.image_url ? <img src={item.image_url} alt={item.name} class="w-full h-full object-contain" /> : <Package size={24} class="text-slate-300" />}
-                        <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition rounded-xl">
-                          <Eye size={16} class="text-white" />
+                    <div key={item.id} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3 shadow-xs flex gap-3 items-center relative">
+                      <div onClick={() => setSelectedProduct(item)} className="w-16 h-16 bg-slate-100 dark:bg-zinc-800 rounded-xl flex-shrink-0 border border-slate-100 dark:border-zinc-800 flex items-center justify-center text-2xl cursor-pointer relative group overflow-hidden">
+                        {item.image_url ? <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /> : <Package size={24} className="text-slate-300" />}
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition rounded-xl">
+                          <Eye size={16} className="text-white" />
                         </div>
                       </div>
 
-                      <!-- Details -->
-                      <div onClick={() => setSelectedProduct(item)} class="flex-grow min-w-0 cursor-pointer">
-                        <div class="flex items-center gap-1 text-[9px] font-bold mb-0.5">
-                          <span class="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded truncate">{item.category} • {item.size}</span>
+                      <div onClick={() => setSelectedProduct(item)} className="flex-grow min-w-0 cursor-pointer">
+                        <div className="flex items-center gap-1 text-[9px] font-bold mb-0.5">
+                          <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded truncate">{item.category} • {item.size}</span>
                         </div>
-                        <h3 class="font-bold text-xs truncate dark:text-zinc-100">{item.name}</h3>
-                        <p class="text-[11px] text-slate-400 truncate">{item.brand ? `ยี่ห้อ: ${item.brand}` : 'ไม่ระบุยี่ห้อ'} {item.volume ? `(${item.volume})` : ''}</p>
+                        <h3 className="font-bold text-xs truncate dark:text-zinc-100">{item.name}</h3>
+                        <p className="text-[11px] text-slate-400 truncate">{item.brand ? `ยี่ห้อ: ${item.brand}` : 'ไม่ระบุยี่ห้อ'} {item.volume ? `(${item.volume})` : ''}</p>
                         
-                        <div class="flex items-center gap-1.5 mt-0.5">
-                          <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{item.price || 0} บ. {item.store ? `• ${item.store}` : ''}</span>
-                          {needsRefill && <span class="text-[9px] bg-red-50 text-red-600 px-1.5 py-0.2 rounded font-bold">⚠️ ซื้อเพิ่ม +{refillDiff} {item.unit}</span>}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{item.price || 0} บ. {item.store ? `• ${item.store}` : ''}</span>
+                          {needsRefill && <span className="text-[9px] bg-red-50 text-red-600 px-1.5 py-0.2 rounded font-bold">⚠️ ซื้อเพิ่ม +{refillDiff} {item.unit}</span>}
                         </div>
                       </div>
 
-                      <!-- Controls -->
-                      <div class="flex flex-col items-end gap-1 flex-shrink-0">
-                        <div class="flex items-center gap-1">
-                          <button onClick={() => togglePin(item.id)} class="p-0.5">
-                            <Pin size={14} class={item.isPinned ? 'fill-amber-500 text-amber-500' : 'text-slate-300'} />
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => togglePin(item.id)} className="p-0.5">
+                            <Pin size={14} className={item.isPinned ? 'fill-amber-500 text-amber-500' : 'text-slate-300'} />
                           </button>
-                          <button onClick={() => openAddModal(item)} class="p-0.5 text-slate-300 hover:text-emerald-600">
+                          <button onClick={() => openAddModal(item)} className="p-0.5 text-slate-300 hover:text-emerald-600">
                             <Edit3 size={14} />
                           </button>
-                          <button onClick={() => softDeleteProduct(item.id, item.name)} class="p-0.5 text-slate-300 hover:text-red-500">
+                          <button onClick={() => softDeleteProduct(item.id, item.name)} className="p-0.5 text-slate-300 hover:text-red-500">
                             <Trash2 size={14} />
                           </button>
                         </div>
 
-                        <div class="flex items-center bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg p-0.5">
-                          <button onClick={() => updateQuantity(item.id, item.quantity - 1, item.name)} class="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-zinc-300">-</button>
+                        <div className="flex items-center bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg p-0.5">
+                          <button onClick={() => updateQuantity(item.id, item.quantity - 1, item.name)} className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-zinc-300">-</button>
                           <input
                             type="number"
                             value={item.quantity}
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0, item.name)}
-                            class="w-8 text-center text-xs font-bold bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded py-0.5 dark:text-white"
+                            className="w-8 text-center text-xs font-bold bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded py-0.5 dark:text-white"
                           />
-                          <button onClick={() => updateQuantity(item.id, item.quantity + 1, item.name)} class="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-zinc-300">+</button>
+                          <button onClick={() => updateQuantity(item.id, item.quantity + 1, item.name)} className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-zinc-300">+</button>
                         </div>
-                        <span class="text-[9px] text-slate-400">เกณฑ์ขั้นต่ำ: {item.min_threshold} {item.unit}</span>
+                        <span className="text-[9px] text-slate-400">เกณฑ์ขั้นต่ำ: {item.min_threshold} {item.unit}</span>
                       </div>
                     </div>
                   );
@@ -514,113 +503,111 @@ export default function Home() {
           </div>
         )}
 
-        <!-- ================= PAGE 2: เช็กราคา & วางแผนซื้อ ================= -->
+        {/* PAGE 2: เช็กราคา & วางแผนซื้อ */}
         {mainTab === 'price' && (
-          <div class="space-y-4">
-            <div class="flex bg-slate-200 dark:bg-zinc-800 p-1 rounded-2xl text-xs font-semibold">
-              <button onClick={() => setPriceSubTab('system')} class={`flex-1 py-2 rounded-xl text-center ${priceSubTab === 'system' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500'}`}>
+          <div className="space-y-4">
+            <div className="flex bg-slate-200 dark:bg-zinc-800 p-1 rounded-2xl text-xs font-semibold">
+              <button onClick={() => setPriceSubTab('system')} className={`flex-1 py-2 rounded-xl text-center ${priceSubTab === 'system' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500'}`}>
                 🛒 รายการในระบบ & สรุปงบต้องซื้อ
               </button>
-              <button onClick={() => setPriceSubTab('temp')} class={`flex-1 py-2 rounded-xl text-center ${priceSubTab === 'temp' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500'}`}>
+              <button onClick={() => setPriceSubTab('temp')} className={`flex-1 py-2 rounded-xl text-center ${priceSubTab === 'temp' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500'}`}>
                 🧮 เครื่องคิดเลขเทียบราคา & ตะกร้าสด
               </button>
             </div>
 
             {priceSubTab === 'system' ? (
-              <div class="space-y-4">
-                <div class="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/40 p-4 rounded-3xl flex justify-between items-center">
+              <div className="space-y-4">
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/40 p-4 rounded-3xl flex justify-between items-center">
                   <div>
-                    <p class="text-xs text-emerald-700 dark:text-emerald-400 font-medium">🛒 ยอดเงินรวมต้องเตรียมไปซื้อของ (ของใกล้หมด):</p>
-                    <p class="text-2xl font-bold text-emerald-800 dark:text-emerald-300 mt-0.5">{totalBudgetNeeded} บาท</p>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">🛒 ยอดเงินรวมต้องเตรียมไปซื้อของ (ของใกล้หมด):</p>
+                    <p className="text-2xl font-bold text-emerald-800 dark:text-emerald-300 mt-0.5">{totalBudgetNeeded} บาท</p>
                   </div>
                   <button onClick={() => {
                     const text = `🛒 รายการของใกล้หมดต้องซื้อเพิ่ม:\n` + lowStockItems.map(i => `• ${i.name} (${i.brand || ''}) ต้องซื้อ ${i.min_threshold - i.quantity + 1} ${i.unit}`).join('\n');
                     navigator.clipboard.writeText(text);
                     alert('คัดลอกลิสต์ส่งเข้า LINE เรียบร้อยแล้ว!');
-                  }} class="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center gap-1">
+                  }} className="bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center gap-1">
                     <Share2 size={14} /> แชร์เข้า LINE
                   </button>
                 </div>
 
-                <div class="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3.5 space-y-3">
-                  <h3 class="font-bold text-xs text-slate-700 dark:text-zinc-200">เปรียบเทียบราคาสินค้าที่มีในระบบ</h3>
+                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3.5 space-y-3">
+                  <h3 className="font-bold text-xs text-slate-700 dark:text-zinc-200">เปรียบเทียบราคาสินค้าที่มีในระบบ</h3>
                   {products.map(p => (
-                    <div key={p.id} class="border-b border-slate-100 dark:border-zinc-800 pb-2 text-xs flex justify-between items-center">
+                    <div key={p.id} className="border-b border-slate-100 dark:border-zinc-800 pb-2 text-xs flex justify-between items-center">
                       <div>
-                        <p class="font-bold">{p.name} ({p.brand || 'ไม่ระบุ'})</p>
-                        <p class="text-[10px] text-slate-400">{p.size} • {p.volume || 'ไม่ระบุปริมาณ'}</p>
+                        <p className="font-bold">{p.name} ({p.brand || 'ไม่ระบุ'})</p>
+                        <p className="text-[10px] text-slate-400">{p.size} • {p.volume || 'ไม่ระบุปริมาณ'}</p>
                       </div>
-                      <div class="text-right">
-                        <p class="font-bold text-emerald-600">{p.price || 0} บาท</p>
-                        <p class="text-[10px] text-slate-400">ร้าน: {p.store || 'ไม่ระบุ'}</p>
+                      <div className="text-right">
+                        <p className="font-bold text-emerald-600">{p.price || 0} บาท</p>
+                        <p className="text-[10px] text-slate-400">ร้าน: {p.store || 'ไม่ระบุ'}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div class="space-y-4">
-                <!-- ตะกร้าสด -->
-                <div class="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3">
-                  <h4 class="font-bold text-xs text-slate-700 dark:text-zinc-200 flex items-center gap-1.5">
-                    <ShoppingCart size={16} class="text-emerald-600" />
+              <div className="space-y-4">
+                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3">
+                  <h4 className="font-bold text-xs text-slate-700 dark:text-zinc-200 flex items-center gap-1.5">
+                    <ShoppingCart size={16} className="text-emerald-600" />
                     <span>🛒 ตะกร้าคำนวณเงินสด (เช็กยอดเงินขณะเดินหยิบของในห้าง)</span>
                   </h4>
-                  <div class="flex gap-2">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       placeholder="ชื่อสินค้า"
                       value={cartName}
                       onChange={(e) => setCartName(e.target.value)}
-                      class="flex-1 p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 text-xs"
+                      className="flex-1 p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 text-xs"
                     />
                     <input
                       type="number"
                       placeholder="ราคา (บาท)"
                       value={cartPrice}
                       onChange={(e) => setCartPrice(e.target.value)}
-                      class="w-28 p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 text-xs font-bold"
+                      className="w-28 p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 text-xs font-bold"
                     />
                     <button onClick={() => {
                       if (!cartPrice) return;
                       setCartItems([...cartItems, { id: Date.now(), name: cartName || 'สินค้าทั่วไป', price: parseFloat(cartPrice) }]);
                       setCartName(''); setCartPrice('');
-                    }} class="bg-emerald-600 text-white text-xs px-3 rounded-xl font-bold">+ ใส่ตะกร้า</button>
+                    }} className="bg-emerald-600 text-white text-xs px-3 rounded-xl font-bold">+ ใส่ตะกร้า</button>
                   </div>
 
-                  <div class="space-y-1.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
                     {cartItems.map(item => (
-                      <div key={item.id} class="flex justify-between items-center bg-slate-50 dark:bg-zinc-800 p-1.5 rounded-xl text-xs">
+                      <div key={item.id} className="flex justify-between items-center bg-slate-50 dark:bg-zinc-800 p-1.5 rounded-xl text-xs">
                         <span>{item.name}</span>
-                        <div class="flex items-center gap-2 font-bold">
+                        <div className="flex items-center gap-2 font-bold">
                           <span>{item.price} บาท</span>
-                          <button onClick={() => setCartItems(cartItems.filter(x => x.id !== item.id))} class="text-red-500 font-bold px-1">✕</button>
+                          <button onClick={() => setCartItems(cartItems.filter(x => x.id !== item.id))} className="text-red-500 font-bold px-1">✕</button>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div class="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-zinc-700 font-bold">
-                    <span class="text-xs">ยอดรวมในตะกร้าขณะนี้:</span>
-                    <span class="text-lg text-emerald-600 dark:text-emerald-400">{cartItems.reduce((sum, item) => sum + item.price, 0)} บาท</span>
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-zinc-700 font-bold">
+                    <span className="text-xs">ยอดรวมในตะกร้าขณะนี้:</span>
+                    <span className="text-lg text-emerald-600 dark:text-emerald-400">{cartItems.reduce((sum, item) => sum + item.price, 0)} บาท</span>
                   </div>
                 </div>
 
-                <!-- เครื่องเทียบความคุ้มค่า -->
-                <div class="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3">
-                  <h4 class="font-bold text-xs text-slate-700 dark:text-zinc-200">⚖️ เครื่องคิดเลขเปรียบเทียบราคาเฉลี่ยต่อหน่วย</h4>
-                  <div class="grid grid-cols-2 gap-3 text-xs">
-                    <div class="space-y-2 bg-slate-50 dark:bg-zinc-800/50 p-3 rounded-2xl">
-                      <span class="font-bold text-emerald-600">ตัวเลือก 1 (เช่น ขวด)</span>
-                      <input type="number" placeholder="ราคา (บาท)" value={tempCalc.p1} onChange={(e) => setTempCalc({ ...tempCalc, p1: e.target.value })} class="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
-                      <input type="number" placeholder="ปริมาณ (ml/กรัม)" value={tempCalc.v1} onChange={(e) => setTempCalc({ ...tempCalc, v1: e.target.value })} class="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
-                      <p class="text-xs font-extrabold pt-1">ตกหน่วยละ: {tempCalc.p1 && tempCalc.v1 ? (tempCalc.p1 / tempCalc.v1).toFixed(3) : '-'} บาท</p>
+                <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3">
+                  <h4 className="font-bold text-xs text-slate-700 dark:text-zinc-200">⚖️ เครื่องคิดเลขเปรียบเทียบราคาเฉลี่ยต่อหน่วย</h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="space-y-2 bg-slate-50 dark:bg-zinc-800/50 p-3 rounded-2xl">
+                      <span className="font-bold text-emerald-600">ตัวเลือก 1 (เช่น ขวด)</span>
+                      <input type="number" placeholder="ราคา (บาท)" value={tempCalc.p1} onChange={(e) => setTempCalc({ ...tempCalc, p1: e.target.value })} className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
+                      <input type="number" placeholder="ปริมาณ (ml/กรัม)" value={tempCalc.v1} onChange={(e) => setTempCalc({ ...tempCalc, v1: e.target.value })} className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
+                      <p className="text-xs font-extrabold pt-1">ตกหน่วยละ: {tempCalc.p1 && tempCalc.v1 ? (tempCalc.p1 / tempCalc.v1).toFixed(3) : '-'} บาท</p>
                     </div>
-                    <div class="space-y-2 bg-slate-50 dark:bg-zinc-800/50 p-3 rounded-2xl">
-                      <span class="font-bold text-blue-600">ตัวเลือก 2 (เช่น ถุงเติม)</span>
-                      <input type="number" placeholder="ราคา (บาท)" value={tempCalc.p2} onChange={(e) => setTempCalc({ ...tempCalc, p2: e.target.value })} class="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
-                      <input type="number" placeholder="ปริมาณ (ml/กรัม)" value={tempCalc.v2} onChange={(e) => setTempCalc({ ...tempCalc, v2: e.target.value })} class="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
-                      <p class="text-xs font-extrabold pt-1">ตกหน่วยละ: {tempCalc.p2 && tempCalc.v2 ? (tempCalc.p2 / tempCalc.v2).toFixed(3) : '-'} บาท</p>
+                    <div className="space-y-2 bg-slate-50 dark:bg-zinc-800/50 p-3 rounded-2xl">
+                      <span className="font-bold text-blue-600">ตัวเลือก 2 (เช่น ถุงเติม)</span>
+                      <input type="number" placeholder="ราคา (บาท)" value={tempCalc.p2} onChange={(e) => setTempCalc({ ...tempCalc, p2: e.target.value })} className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
+                      <input type="number" placeholder="ปริมาณ (ml/กรัม)" value={tempCalc.v2} onChange={(e) => setTempCalc({ ...tempCalc, v2: e.target.value })} className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 text-xs" />
+                      <p className="text-xs font-extrabold pt-1">ตกหน่วยละ: {tempCalc.p2 && tempCalc.v2 ? (tempCalc.p2 / tempCalc.v2).toFixed(3) : '-'} บาท</p>
                     </div>
                   </div>
                 </div>
@@ -629,36 +616,35 @@ export default function Home() {
           </div>
         )}
 
-        <!-- ================= PAGE 3: ประวัติ & ถังขยะ ================= -->
+        {/* PAGE 3: ประวัติ & ถังขยะ */}
         {mainTab === 'history' && (
-          <div class="space-y-4">
-            <h3 class="font-bold text-sm text-slate-700 dark:text-zinc-200">📜 ประวัติการใช้งานย้อนหลัง</h3>
-            <div class="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3 text-xs">
-              {logs.length === 0 ? <p class="text-slate-400 text-center py-4">ยังไม่มีประวัติการใช้งาน</p> : logs.map(log => (
-                <div key={log.id} class="flex items-start gap-3 border-b border-slate-100 dark:border-zinc-800 pb-2.5">
-                  <span class={`p-1.5 rounded-xl font-bold ${log.action_type === 'DEDUCT' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+          <div className="space-y-4">
+            <h3 className="font-bold text-sm text-slate-700 dark:text-zinc-200">📜 ประวัติการใช้งานย้อนหลัง</h3>
+            <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3 text-xs">
+              {logs.length === 0 ? <p className="text-slate-400 text-center py-4">ยังไม่มีประวัติการใช้งาน</p> : logs.map(log => (
+                <div key={log.id} className="flex items-start gap-3 border-b border-slate-100 dark:border-zinc-800 pb-2.5">
+                  <span className={`p-1.5 rounded-xl font-bold ${log.action_type === 'DEDUCT' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                     {log.action_type === 'DEDUCT' ? '-' : '+'}{log.quantity_changed}
                   </span>
                   <div>
-                    <p class="font-bold dark:text-zinc-100">{log.action_type === 'DEDUCT' ? 'นำออกไปใช้' : 'เติมของเข้าบ้าน'} ({log.quantity_changed} ชิ้น)</p>
-                    <p class="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString('th-TH')}</p>
+                    <p className="font-bold dark:text-zinc-100">{log.action_type === 'DEDUCT' ? 'นำออกไปใช้' : 'เติมของเข้าบ้าน'} ({log.quantity_changed} ชิ้น)</p>
+                    <p className="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString('th-TH')}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <!-- ถังขยะกู้คืนข้อมูล -->
-            <div class="bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-4 space-y-2">
-              <h4 class="font-bold text-xs text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+            <div className="bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-4 space-y-2">
+              <h4 className="font-bold text-xs text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
                 <Trash2 size={16} /> <span>🗑️ ถังขยะกู้คืนข้อมูล (คงไว้ 24 ชั่วโมง)</span>
               </h4>
-              {trashItems.length === 0 ? <p class="text-xs text-slate-400 py-2">ไม่มีรายการในถังขยะ</p> : trashItems.map(item => (
-                <div key={item.id} class="bg-amber-50/50 dark:bg-zinc-800 p-2.5 rounded-2xl text-xs flex justify-between items-center">
+              {trashItems.length === 0 ? <p className="text-xs text-slate-400 py-2">ไม่มีรายการในถังขยะ</p> : trashItems.map(item => (
+                <div key={item.id} className="bg-amber-50/50 dark:bg-zinc-800 p-2.5 rounded-2xl text-xs flex justify-between items-center">
                   <div>
-                    <p class="font-bold text-slate-700 dark:text-zinc-200">{item.name}</p>
-                    <p class="text-[10px] text-slate-400">ลบเมื่อ: {new Date(item.deleted_at).toLocaleString('th-TH')}</p>
+                    <p className="font-bold text-slate-700 dark:text-zinc-200">{item.name}</p>
+                    <p className="text-[10px] text-slate-400">ลบเมื่อ: {new Date(item.deleted_at).toLocaleString('th-TH')}</p>
                   </div>
-                  <button onClick={() => restoreProduct(item.id)} class="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">
+                  <button onClick={() => restoreProduct(item.id)} className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1">
                     <RotateCcw size={12} /> กู้คืน
                   </button>
                 </div>
@@ -669,160 +655,158 @@ export default function Home() {
 
       </main>
 
-      <!-- 👁️ MODAL: รายละเอียดสินค้า -->
+      {/* MODAL: รายละเอียดสินค้า */}
       {selectedProduct && (
-        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div class="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs relative">
-            <button onClick={() => setSelectedProduct(null)} class="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs relative">
+            <button onClick={() => setSelectedProduct(null)} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
 
-            <div class="w-full h-48 bg-slate-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-zinc-800">
-              {selectedProduct.image_url ? <img src={selectedProduct.image_url} class="w-full h-full object-contain" /> : <Package size={48} class="text-slate-300" />}
+            <div className="w-full h-48 bg-slate-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-zinc-800">
+              {selectedProduct.image_url ? <img src={selectedProduct.image_url} className="w-full h-full object-contain" /> : <Package size={48} className="text-slate-300" />}
             </div>
 
-            <div class="space-y-1">
-              <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{selectedProduct.category} • {selectedProduct.size}</span>
-              <h3 class="text-base font-bold text-slate-800 dark:text-zinc-100 mt-1">{selectedProduct.name}</h3>
-              <p class="text-xs text-slate-400">ยี่ห้อ: {selectedProduct.brand || 'ไม่ระบุ'} | ปริมาณ: {selectedProduct.volume || 'ไม่ระบุ'}</p>
-              <p class="text-xs font-bold text-emerald-600">ราคาล่าสุด: {selectedProduct.price || 0} บาท ({selectedProduct.store || 'ไม่ระบุร้าน'})</p>
-              <p class="text-xs font-bold text-slate-700 dark:text-zinc-300">สต๊อกคงเหลือ: {selectedProduct.quantity} {selectedProduct.unit} (เกณฑ์ขั้นต่ำ {selectedProduct.min_threshold} {selectedProduct.unit})</p>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{selectedProduct.category} • {selectedProduct.size}</span>
+              <h3 className="text-base font-bold text-slate-800 dark:text-zinc-100 mt-1">{selectedProduct.name}</h3>
+              <p className="text-xs text-slate-400">ยี่ห้อ: {selectedProduct.brand || 'ไม่ระบุ'} | ปริมาณ: {selectedProduct.volume || 'ไม่ระบุ'}</p>
+              <p className="text-xs font-bold text-emerald-600">ราคาล่าสุด: {selectedProduct.price || 0} บาท ({selectedProduct.store || 'ไม่ระบุร้าน'})</p>
+              <p className="text-xs font-bold text-slate-700 dark:text-zinc-300">สต๊อกคงเหลือ: {selectedProduct.quantity} {selectedProduct.unit} (เกณฑ์ขั้นต่ำ {selectedProduct.min_threshold} {selectedProduct.unit})</p>
             </div>
           </div>
         </div>
       )}
 
-      <!-- 📸 MODAL: บันทึก/แก้ไขสินค้า -->
+      {/* MODAL: บันทึก/แก้ไขสินค้า */}
       {showAddModal && (
-        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div class="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs">
-            <div class="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800 pb-2">
-              <h3 class="font-bold text-sm">{editingId ? '✏️ แก้ไขข้อมูลสินค้า' : '📸 บันทึกของเข้าบ้าน'}</h3>
-              <button onClick={() => setShowAddModal(false)} class="text-slate-400"><X size={20} /></button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800 pb-2">
+              <h3 className="font-bold text-sm">{editingId ? '✏️ แก้ไขข้อมูลสินค้า' : '📸 บันทึกของเข้าบ้าน'}</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400"><X size={20} /></button>
             </div>
 
-            <div class="border-2 border-dashed border-emerald-300 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl p-3 text-center relative">
-              <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} class="absolute inset-0 opacity-0 cursor-pointer z-10" />
+            <div className="border-2 border-dashed border-emerald-300 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl p-3 text-center relative">
+              <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
               {imagePreview ? (
-                <div class="h-32 w-full relative">
-                  <img src={imagePreview} class="h-full mx-auto object-contain rounded-xl" />
-                  <p class="text-[10px] text-emerald-700 font-bold mt-1">กดเปลี่ยนรูปถ่ายใหม่ได้</p>
+                <div className="h-32 w-full relative">
+                  <img src={imagePreview} className="h-full mx-auto object-contain rounded-xl" />
+                  <p className="text-[10px] text-emerald-700 font-bold mt-1">กดเปลี่ยนรูปถ่ายใหม่ได้</p>
                 </div>
               ) : (
                 <>
-                  <Camera size={24} class="mx-auto text-emerald-600 mb-1" />
-                  <span class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 block">{aiProcessing ? '⚡ AI กำลังอ่านฉลาก...' : 'ถ่ายรูปหน้าซอง/ขวด (ให้ AI อ่านอัตโนมัติ)'}</span>
+                  <Camera size={24} className="mx-auto text-emerald-600 mb-1" />
+                  <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 block">{aiProcessing ? '⚡ AI กำลังอ่านฉลาก...' : 'ถ่ายรูปหน้าซอง/ขวด (ให้ AI อ่านอัตโนมัติ)'}</span>
                 </>
               )}
             </div>
 
-            <form onSubmit={handleSaveProduct} class="space-y-2">
+            <form onSubmit={handleSaveProduct} className="space-y-2">
               <div>
-                <label class="block font-medium text-slate-500 mb-0.5">ชื่อสินค้า *</label>
-                <input required type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="เช่น น้ำยาล้างจาน" />
+                <label className="block font-medium text-slate-500 mb-0.5">ชื่อสินค้า *</label>
+                <input required type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="เช่น น้ำยาล้างจาน" />
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">ยี่ห้อ</label>
-                  <input type="text" value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="เช่น ซันไลต์" />
+                  <label className="block font-medium text-slate-500 mb-0.5">ยี่ห้อ</label>
+                  <input type="text" value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="เช่น ซันไลต์" />
                 </div>
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">หมวดหมู่</label>
-                  <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800">
+                  <label className="block font-medium text-slate-500 mb-0.5">หมวดหมู่</label>
+                  <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800">
                     {categories.filter(c => c !== 'ทั้งหมด').map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
-              <div class="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">ขนาด</label>
-                  <select value={formData.size} onChange={(e) => setFormData({ ...formData, size: e.target.value })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800">
+                  <label className="block font-medium text-slate-500 mb-0.5">ขนาด</label>
+                  <select value={formData.size} onChange={(e) => setFormData({ ...formData, size: e.target.value })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800">
                     {sizes.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">หน่วยนับ</label>
-                  <select value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800">
+                  <label className="block font-medium text-slate-500 mb-0.5">หน่วยนับ</label>
+                  <select value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800">
                     {units.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">ปริมาณ/ขวด</label>
-                  <input type="text" value={formData.volume} onChange={(e) => setFormData({ ...formData, volume: e.target.value })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="500ml" />
+                  <label className="block font-medium text-slate-500 mb-0.5">ปริมาณ/ขวด</label>
+                  <input type="text" value={formData.volume} onChange={(e) => setFormData({ ...formData, volume: e.target.value })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="500ml" />
                 </div>
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">ราคาล่าสุด (บาท)</label>
-                  <input type="number" value={formData.price} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800 font-bold" />
+                  <label className="block font-medium text-slate-500 mb-0.5">ราคาล่าสุด (บาท)</label>
+                  <input type="number" value={formData.price} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800 font-bold" />
                 </div>
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">ร้านค้าที่ซื้อ</label>
-                  <input type="text" value={formData.store} onChange={(e) => setFormData({ ...formData, store: e.target.value })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="เช่น CJ More" />
+                  <label className="block font-medium text-slate-500 mb-0.5">ร้านค้าที่ซื้อ</label>
+                  <input type="text" value={formData.store} onChange={(e) => setFormData({ ...formData, store: e.target.value })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" placeholder="เช่น CJ More" />
                 </div>
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">จำนวนที่ซื้อมา</label>
-                  <input type="number" value={formData.quantity} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800 font-bold" />
+                  <label className="block font-medium text-slate-500 mb-0.5">จำนวนที่ซื้อมา</label>
+                  <input type="number" value={formData.quantity} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800 font-bold" />
                 </div>
                 <div>
-                  <label class="block font-medium text-slate-500 mb-0.5">เกณฑ์เตือนขั้นต่ำ</label>
-                  <input type="number" value={formData.min_threshold} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, min_threshold: parseInt(e.target.value) || 1 })} class="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" />
+                  <label className="block font-medium text-slate-500 mb-0.5">เกณฑ์เตือนขั้นต่ำ</label>
+                  <input type="number" value={formData.min_threshold} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, min_threshold: parseInt(e.target.value) || 1 })} className="w-full p-2 rounded-xl border dark:border-zinc-700 dark:bg-zinc-800" />
                 </div>
               </div>
 
-              <div class="flex gap-2 pt-2">
-                <button type="button" onClick={() => setShowAddModal(false)} class="w-1/2 bg-slate-100 dark:bg-zinc-800 py-2.5 rounded-xl font-medium">ยกเลิก</button>
-                <button type="submit" class="w-1/2 bg-emerald-600 text-white py-2.5 rounded-xl font-medium shadow-md">บันทึกสต๊อก</button>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowAddModal(false)} className="w-1/2 bg-slate-100 dark:bg-zinc-800 py-2.5 rounded-xl font-medium">ยกเลิก</button>
+                <button type="submit" className="w-1/2 bg-emerald-600 text-white py-2.5 rounded-xl font-medium shadow-md">บันทึกสต๊อก</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      <!-- ⚙️ MODAL: การตั้งค่า -->
+      {/* MODAL: การตั้งค่า */}
       {showSettingsModal && (
-        <div class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div class="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto text-xs">
-            <div class="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800 pb-2">
-              <h3 class="font-bold text-sm flex items-center gap-1.5"><Settings size={16} /> การตั้งค่าระบบ</h3>
-              <button onClick={() => setShowSettingsModal(false)} class="text-slate-400"><X size={20} /></button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto text-xs">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800 pb-2">
+              <h3 className="font-bold text-sm flex items-center gap-1.5"><Settings size={16} /> การตั้งค่าระบบ</h3>
+              <button onClick={() => setShowSettingsModal(false)} className="text-slate-400"><X size={20} /></button>
             </div>
 
-            <!-- Export -->
-            <div class="space-y-2">
-              <h4 class="font-bold text-slate-500">📊 ส่งออกรายงาน (ประทับวันเวลาให้อัตโนมัติ)</h4>
-              <button onClick={exportToExcel} class="w-full p-2.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 rounded-2xl font-semibold flex items-center justify-center gap-1.5">
+            <div className="space-y-2">
+              <h4 className="font-bold text-slate-500">📊 ส่งออกรายงาน (ประทับวันเวลาให้อัตโนมัติ)</h4>
+              <button onClick={exportToExcel} className="w-full p-2.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 rounded-2xl font-semibold flex items-center justify-center gap-1.5">
                 <FileSpreadsheet size={16} /> ดาวน์โหลดไฟล์ Excel (.csv ภาษาไทย)
               </button>
             </div>
 
-            <!-- Custom Options Manager -->
-            <div class="space-y-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
-              <h4 class="font-bold text-slate-500">✏️ เพิ่มตัวเลือกใหม่ (หมวดหมู่/ขนาด/หน่วยนับ)</h4>
-              <div class="flex gap-2">
-                <select value={newOptionInput.type} onChange={(e) => setNewOptionInput({ ...newOptionInput, type: e.target.value })} class="p-2 border rounded-xl dark:bg-zinc-800">
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+              <h4 className="font-bold text-slate-500">✏️ เพิ่มตัวเลือกใหม่ (หมวดหมู่/ขนาด/หน่วยนับ)</h4>
+              <div className="flex gap-2">
+                <select value={newOptionInput.type} onChange={(e) => setNewOptionInput({ ...newOptionInput, type: e.target.value })} className="p-2 border rounded-xl dark:bg-zinc-800">
                   <option value="category">หมวดหมู่</option>
                   <option value="size">ขนาด</option>
                   <option value="unit">หน่วยนับ</option>
                 </select>
-                <input type="text" placeholder="ชื่อตัวเลือกใหม่..." value={newOptionInput.value} onChange={(e) => setNewOptionInput({ ...newOptionInput, value: e.target.value })} class="flex-1 p-2 border rounded-xl dark:bg-zinc-800" />
-                <button onClick={handleAddCustomOption} class="bg-emerald-600 text-white px-3 rounded-xl font-bold">+ เพิ่ม</button>
+                <input type="text" placeholder="ชื่อตัวเลือกใหม่..." value={newOptionInput.value} onChange={(e) => setNewOptionInput({ ...newOptionInput, value: e.target.value })} className="flex-1 p-2 border rounded-xl dark:bg-zinc-800" />
+                <button onClick={handleAddCustomOption} className="bg-emerald-600 text-white px-3 rounded-xl font-bold">+ เพิ่ม</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <!-- 📱 Bottom Navigation Bar -->
-      <nav class="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 py-2 z-30">
-        <div class="max-w-md mx-auto flex justify-around items-center text-[10px]">
-          <button onClick={() => setMainTab('stock')} class={`flex flex-col items-center gap-1 ${mainTab === 'stock' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 py-2 z-30">
+        <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
+          <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 ${mainTab === 'stock' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
             <HomeIcon size={20} /><span>สต๊อกบ้าน</span>
           </button>
-          <button onClick={() => setMainTab('price')} class={`flex flex-col items-center gap-1 ${mainTab === 'price' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
+          <button onClick={() => setMainTab('price')} className={`flex flex-col items-center gap-1 ${mainTab === 'price' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
             <Tag size={20} /><span>เช็กราคา & ซื้อของ</span>
           </button>
-          <button onClick={() => setMainTab('history')} class={`flex flex-col items-center gap-1 ${mainTab === 'history' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
+          <button onClick={() => setMainTab('history')} className={`flex flex-col items-center gap-1 ${mainTab === 'history' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}`}>
             <Clock size={20} /><span>ประวัติ & ถังขยะ</span>
           </button>
         </div>
