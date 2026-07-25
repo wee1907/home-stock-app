@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Plus, Minus, Search, Camera, AlertTriangle, Package, Trash2, X, Eye, Sparkles, Edit3, 
-  Pin, Settings, Sun, Moon, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock, ArrowUpDown, Calendar
+  Pin, Settings, Sun, Moon, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock
 } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,7 +12,7 @@ const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const DEFAULT_CATEGORIES = ['ทั้งหมด', 'ห้องครัวและของกิน', 'ห้องน้ำและทำความสะอาด', 'เครื่องสำอาง', 'อื่นๆ'];
 const DEFAULT_UNITS = ['ขวด', 'ถุง', 'ก้อน', 'กล่อง', 'กระป๋อง', 'แพ็ค', 'ชิ้น', 'ซอง', 'เส้น'];
-const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', 'ยาว'];
+const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', '2 เมตร'];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -22,7 +22,6 @@ export default function Home() {
   const [priceSubTab, setPriceSubTab] = useState('system');
   const [activeCategory, setActiveCategory] = useState('ทั้งหมด');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('created'); // 'created', 'low_stock', 'price_asc', 'price_desc'
   const [loading, setLoading] = useState(true);
   const [quickCmd, setQuickCmd] = useState('');
   const [cmdProcessing, setCmdProcessing] = useState(false);
@@ -439,27 +438,18 @@ export default function Home() {
     return sum + (needToBuy * (item.price || 0));
   }, 0);
 
-  // การกรอง & จัดเรียงลำดับสินค้า (Sorting)
-  let filteredProducts = products.filter(p => {
+  const filteredProducts = products.filter(p => {
     const matchCat = activeCategory === 'ทั้งหมด' || p.category === activeCategory;
     const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchCat && matchSearch;
   });
-
-  if (sortBy === 'low_stock') {
-    filteredProducts.sort((a, b) => (a.quantity - a.min_threshold) - (b.quantity - b.min_threshold));
-  } else if (sortBy === 'price_desc') {
-    filteredProducts.sort((a, b) => (b.price || 0) - (a.price || 0));
-  } else if (sortBy === 'price_asc') {
-    filteredProducts.sort((a, b) => (a.price || 0) - (b.price || 0));
-  }
 
   const pinnedProducts = products.filter(p => p.isPinned);
 
   return (
     <div className="min-h-screen pb-24 transition-colors duration-300">
       
-      {/* 🟢 Header Glassmorphism */}
+      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-zinc-800/80 px-4 py-3 shadow-xs">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
@@ -488,10 +478,9 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-4 pt-5">
 
-        {/* ================= PAGE 1: สต๊อกบ้าน ================= */}
+        {/* PAGE 1: สต๊อกบ้าน */}
         {mainTab === 'stock' && (
           <div className="space-y-5">
-            {/* AI Hero Glass Box */}
             <form onSubmit={handleQuickCommand} className="bg-gradient-to-br from-emerald-500/5 via-teal-500/5 to-transparent dark:from-emerald-950/30 dark:via-zinc-900 dark:to-zinc-900 border border-emerald-500/20 dark:border-zinc-800 rounded-3xl p-4 shadow-sm relative overflow-hidden">
               <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                 <Sparkles size={16} className="animate-pulse" />
@@ -511,7 +500,6 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Pinned Favorites */}
             {pinnedProducts.length > 0 && (
               <section className="space-y-2.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-zinc-300">
@@ -538,31 +526,16 @@ export default function Home() {
               </section>
             )}
 
-            {/* Search Bar & Sorting */}
             <div className="space-y-3">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search size={16} className="absolute left-4 top-3.5 text-slate-400 dark:text-zinc-500" />
-                  <input
-                    type="text"
-                    placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs dark:text-zinc-100 dark:placeholder-zinc-500 shadow-xs focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                {/* Sorting Dropdown */}
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-zinc-300 dark:bg-zinc-800 focus:outline-none"
-                >
-                  <option value="created">🕒 ล่าสุด</option>
-                  <option value="low_stock">⚠️ ของใกล้หมดขึ้นก่อน</option>
-                  <option value="price_desc">💵 ราคา แพง-ถูก</option>
-                  <option value="price_asc">🏷️ ราคา ถูก-แพง</option>
-                </select>
+              <div className="relative">
+                <Search size={16} className="absolute left-4 top-3.5 text-slate-400 dark:text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs dark:text-zinc-100 dark:placeholder-zinc-500 shadow-xs focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 focus:outline-none"
+                />
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
@@ -578,7 +551,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Product Cards Grid */}
             {loading ? (
               <div className="text-center py-16 text-slate-400 dark:text-zinc-500 text-xs">กำลังโหลดสต๊อก...</div>
             ) : filteredProducts.length === 0 ? (
@@ -592,10 +564,10 @@ export default function Home() {
                   return (
                     <div key={item.id} className="bg-white dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800/80 rounded-3xl p-3.5 shadow-xs hover:shadow-md hover:border-emerald-500/30 transition-all duration-200 flex gap-3.5 items-center relative overflow-hidden group">
                       
-                      {/* Photo Thumbnail */}
-                      <div onClick={() => setSelectedProduct(item)} className="w-18 h-18 bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex-shrink-0 border border-slate-200/60 dark:border-zinc-700/50 flex items-center justify-center text-2xl cursor-pointer relative overflow-hidden group-hover:scale-102 transition">
+                      {/* Lockey Photo Box (ล็อคขนาดไม่ให้ยักษ์แน่นอน) */}
+                      <div onClick={() => setSelectedProduct(item)} className="w-18 h-18 max-w-[72px] max-h-[72px] bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex-shrink-0 border border-slate-200/60 dark:border-zinc-700/50 flex items-center justify-center cursor-pointer relative overflow-hidden">
                         {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" />
+                          <img src={item.image_url} alt={item.name} className="w-full h-full object-contain max-h-[72px]" />
                         ) : (
                           <Package size={26} className="text-slate-300 dark:text-zinc-600" />
                         )}
@@ -604,7 +576,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Content Details */}
                       <div onClick={() => setSelectedProduct(item)} className="flex-grow min-w-0 cursor-pointer space-y-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/10 dark:border-emerald-500/20 px-2 py-0.5 rounded-lg truncate max-w-full">
@@ -626,7 +597,6 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Controls */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => togglePin(item.id)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
@@ -662,7 +632,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ================= PAGE 2: เช็กราคา & วางแผนซื้อ ================= */}
+        {/* PAGE 2: เช็กราคา & วางแผนซื้อ */}
         {mainTab === 'price' && (
           <div className="space-y-5">
             <div className="flex bg-slate-200/80 dark:bg-zinc-800/80 p-1.5 rounded-2xl text-xs font-semibold">
@@ -770,7 +740,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ================= PAGE 3: ประวัติ & ถังขยะ ================= */}
+        {/* PAGE 3: ประวัติ & ถังขยะ */}
         {mainTab === 'history' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -829,7 +799,7 @@ export default function Home() {
             <button onClick={() => setSelectedProduct(null)} className="absolute top-4 right-4 text-slate-400 dark:text-zinc-400 hover:text-slate-600"><X size={20} /></button>
 
             <div className="w-full h-52 bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-zinc-800/80">
-              {selectedProduct.image_url ? <img src={selectedProduct.image_url} className="w-full h-full object-contain" /> : <Package size={48} className="text-slate-300 dark:text-zinc-600" />}
+              {selectedProduct.image_url ? <img src={selectedProduct.image_url} className="w-full h-full object-contain max-h-52" /> : <Package size={48} className="text-slate-300 dark:text-zinc-600" />}
             </div>
 
             <div className="space-y-1.5">
@@ -868,7 +838,7 @@ export default function Home() {
               <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
               {imagePreview ? (
                 <div className="h-32 w-full relative">
-                  <img src={imagePreview} className="h-full mx-auto object-contain rounded-xl" />
+                  <img src={imagePreview} className="h-full mx-auto object-contain rounded-xl max-h-32" />
                   <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold mt-1">กดเปลี่ยนรูปถ่ายใหม่ได้</p>
                 </div>
               ) : (
@@ -944,7 +914,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* MODAL: การตั้งค่า + จัดการตัวเลือก (เพิ่ม/แก้ไข/ลบ) */}
+      {/* MODAL: การตั้งค่า */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto text-xs dark:text-zinc-100">
