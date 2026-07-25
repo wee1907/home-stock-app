@@ -60,11 +60,6 @@ export default function Home() {
     fetchLogs();
   }, []);
 
-  useEffect(() => {
-    if (darkMode) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-  }, [darkMode]);
-
   const fetchProducts = async () => {
     setLoading(true);
     const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
@@ -76,10 +71,11 @@ export default function Home() {
   };
 
   const fetchLogs = async () => {
-    const { data } = await supabase.from('usage_logs').select('*').order('created_at', { ascending: false }).limit(20);
+    const { data } = await supabase.from('usage_logs').select('*').order('created_at', { ascending: false }).limit(500);
     if (data) setLogs(data);
   };
 
+  // บันทึกประวัติ + ลิมิตไม่เกิน 500 รายการ (ข้อ 6)
   const logAction = async (productId, productName, actionType, qtyChanged) => {
     await supabase.from('usage_logs').insert([{
       product_id: productId,
@@ -87,7 +83,28 @@ export default function Home() {
       quantity_changed: qtyChanged,
       created_at: new Date().toISOString()
     }]);
+
+    // เช็กหากประวัติเกิน 500 ให้ลบอันเก่าที่สุดทิ้ง
+    const { data: allLogs } = await supabase.from('usage_logs').select('id').order('created_at', { ascending: true });
+    if (allLogs && allLogs.length > 500) {
+      const excessCount = allLogs.length - 500;
+      const idsToDelete = allLogs.slice(0, excessCount).map(l => l.id);
+      await supabase.from('usage_logs').delete().in('id', idsToDelete);
+    }
     fetchLogs();
+  };
+
+  const deleteSingleLog = async (id) => {
+    await supabase.from('usage_logs').delete().eq('id', id);
+    setLogs(prev => prev.filter(l => l.id !== id));
+  };
+
+  const clearAllLogs = async () => {
+    if (confirm('คุณต้องการล้างประวัติการใช้งานทั้งหมดใช่ไหม?')) {
+      await supabase.from('usage_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      setLogs([]);
+      alert('🧹 ล้างประวัติทั้งหมดเรียบร้อยแล้ว');
+    }
   };
 
   const compressImage = (file) => {
@@ -239,6 +256,7 @@ export default function Home() {
     if (!p) return;
     const newPin = !p.isPinned;
     setProducts(prev => prev.map(item => item.id === id ? { ...item, isPinned: newPin } : item));
+    if (selectedProduct?.id === id) setSelectedProduct(prev => ({ ...prev, isPinned: newPin }));
     await supabase.from('products').update({ isPinned: newPin }).eq('id', id);
   };
 
@@ -265,6 +283,7 @@ export default function Home() {
     if (editingId) {
       await supabase.from('products').update(formData).eq('id', editingId);
       setProducts(prev => prev.map(p => p.id === editingId ? { ...p, ...formData } : p));
+      if (selectedProduct?.id === editingId) setSelectedProduct({ ...selectedProduct, ...formData });
       alert('🎉 แก้ไขข้อมูลเรียบร้อย!');
     } else {
       const { data } = await supabase.from('products').insert([formData]).select();
@@ -293,6 +312,7 @@ export default function Home() {
     setShowAddModal(true);
   };
 
+  // เพิ่ม/ลบ ตัวเลือก Custom (ข้อ 2)
   const handleAddCustomOption = () => {
     const val = newOptionInput.value.trim();
     if (!val) return;
@@ -300,7 +320,21 @@ export default function Home() {
     if (newOptionInput.type === 'unit' && !units.includes(val)) setUnits([...units, val]);
     if (newOptionInput.type === 'size' && !sizes.includes(val)) setSizes([...sizes, val]);
     setNewOptionInput({ ...newOptionInput, value: '' });
-    alert('✅ เพิ่มตัวเลือกเรียบร้อย');
+  };
+
+  const handleDeleteCustomOption = async (type, itemToDelete) => {
+    if (type === 'category') {
+      if (itemToDelete === 'ทั้งหมด' || itemToDelete === 'อื่นๆ') return alert('ไม่สามารถลบหมวดหมู่นี้ได้');
+      setCategories(categories.filter(c => c !== itemToDelete));
+      if (activeCategory === itemToDelete) setActiveCategory('ทั้งหมด');
+      // ย้ายสินค้าในหมวดที่ลบไปอยู่หมวด "อื่นๆ" (ข้อ 2)
+      await supabase.from('products').update({ category: 'อื่นๆ' }).eq('category', itemToDelete);
+      fetchProducts();
+    } else if (type === 'unit') {
+      setUnits(units.filter(u => u !== itemToDelete));
+    } else if (type === 'size') {
+      setSizes(sizes.filter(s => s !== itemToDelete));
+    }
   };
 
   const exportToExcel = () => {
@@ -319,6 +353,58 @@ export default function Home() {
     link.click();
   };
 
+  // สั่งพิมพ์รายงาน PDF สวยงาม (ข้อ 1)
+  const exportToPDF = () => {
+    const timeStr = new Date().toLocaleString('th-TH');
+    const printWindow = window.open('', '_blank');
+    
+    let html = `
+      <html>
+      <head>
+        <title>รายงานสต๊อกของใช้ในบ้าน</title>
+        <style>
+          body { font-family: 'Sarabun', sans-serif; padding: 20px; color: #333; }
+          h1 { color: #16a34a; margin-bottom: 5px; }
+          .meta { font-size: 12px; color: #666; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f0fdf4; color: #16a34a; }
+          .footer { margin-top: 30px; font-size: 11px; text-align: center; color: #888; }
+        </style>
+      </head>
+      <body>
+        <h1>🏡 รายงานสรุปสต๊อกของใช้ในบ้าน (Home Stock)</h1>
+        <div class="meta">🕒 ข้อมูล ณ วันที่: ${timeStr} | จำนวนทั้งหมด: ${products.length} รายการ</div>
+        <table>
+          <thead>
+            <tr>
+              <th>ชื่อสินค้า</th><th>ยี่ห้อ</th><th>หมวดหมู่</th><th>ขนาด</th><th>ปริมาณ</th><th>คงเหลือ</th><th>ราคา</th><th>ร้านค้า</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${products.map(p => `
+              <tr>
+                <td><b>${p.name}</b></td>
+                <td>${p.brand || '-'}</td>
+                <td>${p.category}</td>
+                <td>${p.size || '-'}</td>
+                <td>${p.volume || '-'}</td>
+                <td>${p.quantity} ${p.unit}</td>
+                <td>${p.price || 0} บาท</td>
+                <td>${p.store || '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="footer">พิมพ์จากระบบ Home Stock Management System</div>
+        <script>window.print();</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   const lowStockItems = products.filter(p => p.quantity <= p.min_threshold);
   const totalBudgetNeeded = lowStockItems.reduce((sum, item) => {
     const needToBuy = Math.max(1, item.min_threshold - item.quantity + 1);
@@ -334,7 +420,7 @@ export default function Home() {
   const pinnedProducts = products.filter(p => p.isPinned);
 
   return (
-    <div className="min-h-screen pb-24 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100">
+    <div className={`min-h-screen pb-24 transition-colors duration-200 ${darkMode ? 'bg-zinc-950 text-zinc-100 dark' : 'bg-slate-50 text-slate-800'}`}>
       
       {/* 🟢 Header */}
       <header className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800 px-4 py-3">
@@ -348,6 +434,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* โหมดมืด/สว่าง เปลี่ยนสีเป๊ะ (ข้อ 3) */}
             <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
@@ -363,7 +450,7 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-4 pt-4">
 
-        {/* PAGE 1: สต๊อกบ้าน */}
+        {/* ================= PAGE 1: สต๊อกบ้าน ================= */}
         {mainTab === 'stock' && (
           <div className="space-y-4">
             <form onSubmit={handleQuickCommand} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-3.5 shadow-xs">
@@ -446,7 +533,7 @@ export default function Home() {
                   const refillDiff = item.min_threshold - item.quantity + 1;
 
                   return (
-                    <div key={item.id} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3 shadow-xs flex gap-3 items-center relative">
+                    <div key={item.id} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3 shadow-xs flex gap-3 items-center relative overflow-hidden">
                       <div onClick={() => setSelectedProduct(item)} className="w-16 h-16 bg-slate-100 dark:bg-zinc-800 rounded-xl flex-shrink-0 border border-slate-100 dark:border-zinc-800 flex items-center justify-center text-2xl cursor-pointer relative group overflow-hidden">
                         {item.image_url ? <img src={item.image_url} alt={item.name} className="w-full h-full object-contain" /> : <Package size={24} className="text-slate-300" />}
                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition rounded-xl">
@@ -491,7 +578,7 @@ export default function Home() {
                           />
                           <button onClick={() => updateQuantity(item.id, item.quantity + 1, item.name)} className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-zinc-300">+</button>
                         </div>
-                        <span className="text-[9px] text-slate-400">เกณฑ์ขั้นต่ำ: {item.min_threshold} {item.unit}</span>
+                        <span className="text-[9px] text-slate-400">ขั้นต่ำ: {item.min_threshold} {item.unit}</span>
                       </div>
                     </div>
                   );
@@ -501,7 +588,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* PAGE 2: เช็กราคา & วางแผนซื้อ */}
+        {/* ================= PAGE 2: เช็กราคา & วางแผนซื้อ ================= */}
         {mainTab === 'price' && (
           <div className="space-y-4">
             <div className="flex bg-slate-200 dark:bg-zinc-800 p-1 rounded-2xl text-xs font-semibold">
@@ -607,20 +694,34 @@ export default function Home() {
           </div>
         )}
 
-        {/* PAGE 3: ประวัติ & ถังขยะ */}
+        {/* ================= PAGE 3: ประวัติ & ถังขยะ (ข้อ 6) ================= */}
         {mainTab === 'history' && (
           <div className="space-y-4">
-            <h3 className="font-bold text-sm text-slate-700 dark:text-zinc-200">📜 ประวัติการใช้งานย้อนหลัง</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-sm text-slate-700 dark:text-zinc-200">📜 ประวัติการใช้งานย้อนหลัง (สูงสุด 500 รายการ)</h3>
+              {logs.length > 0 && (
+                <button onClick={clearAllLogs} className="text-xs text-red-500 hover:underline font-bold">
+                  ล้างประวัติทั้งหมด
+                </button>
+              )}
+            </div>
+
             <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3 text-xs">
               {logs.length === 0 ? <p className="text-slate-400 text-center py-4">ยังไม่มีประวัติการใช้งาน</p> : logs.map(log => (
-                <div key={log.id} className="flex items-start gap-3 border-b border-slate-100 dark:border-zinc-800 pb-2.5">
-                  <span className={`p-1.5 rounded-xl font-bold ${log.action_type === 'DEDUCT' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                    {log.action_type === 'DEDUCT' ? '-' : '+'}{log.quantity_changed}
-                  </span>
-                  <div>
-                    <p className="font-bold dark:text-zinc-100">{log.action_type === 'DEDUCT' ? 'นำออกไปใช้' : 'เติมของเข้าบ้าน'} ({log.quantity_changed} ชิ้น)</p>
-                    <p className="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString('th-TH')}</p>
+                <div key={log.id} className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
+                  <div className="flex items-start gap-3">
+                    <span className={`p-1.5 rounded-xl font-bold ${log.action_type === 'DEDUCT' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {log.action_type === 'DEDUCT' ? '-' : '+'}{log.quantity_changed}
+                    </span>
+                    <div>
+                      <p className="font-bold dark:text-zinc-100">{log.action_type === 'DEDUCT' ? 'นำออกไปใช้' : 'เติมของเข้าบ้าน'} ({log.quantity_changed} ชิ้น)</p>
+                      <p className="text-[10px] text-slate-400">{new Date(log.created_at).toLocaleString('th-TH')}</p>
+                    </div>
                   </div>
+                  {/* ปุ่มลบประวัติเฉพาะบรรทัด (ข้อ 6) */}
+                  <button onClick={() => deleteSingleLog(log.id)} className="text-slate-300 hover:text-red-500 p-1">
+                    <X size={14} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -646,7 +747,7 @@ export default function Home() {
 
       </main>
 
-      {/* 👁️ MODAL: รายละเอียดสินค้า */}
+      {/* 👁️ MODAL: รายละเอียดสินค้า + ปุ่มกดแก้ไข/ปักหมุด/ลบ (ข้อ 4) */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3 max-h-[90vh] overflow-y-auto text-xs relative">
@@ -662,6 +763,19 @@ export default function Home() {
               <p className="text-xs text-slate-400">ยี่ห้อ: {selectedProduct.brand || 'ไม่ระบุ'} | ปริมาณ: {selectedProduct.volume || 'ไม่ระบุ'}</p>
               <p className="text-xs font-bold text-emerald-600">ราคาล่าสุด: {selectedProduct.price || 0} บาท ({selectedProduct.store || 'ไม่ระบุร้าน'})</p>
               <p className="text-xs font-bold text-slate-700 dark:text-zinc-300">สต๊อกคงเหลือ: {selectedProduct.quantity} {selectedProduct.unit} (เกณฑ์ขั้นต่ำ {selectedProduct.min_threshold} {selectedProduct.unit})</p>
+            </div>
+
+            {/* ปุ่มกด ปักหมุด, แก้ไข, ลบ ในหน้ารายละเอียด (ข้อ 4) */}
+            <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+              <button onClick={() => togglePin(selectedProduct.id)} className={`flex-1 py-2 rounded-xl border flex items-center justify-center gap-1 font-bold ${selectedProduct.isPinned ? 'bg-amber-50 border-amber-200 text-amber-600' : 'border-slate-200 text-slate-600'}`}>
+                <Pin size={14} /> {selectedProduct.isPinned ? 'ปักหมุดอยู่' : 'ปักหมุด'}
+              </button>
+              <button onClick={() => { setSelectedProduct(null); openAddModal(selectedProduct); }} className="flex-1 py-2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-xl font-bold flex items-center justify-center gap-1">
+                <Edit3 size={14} /> แก้ไข
+              </button>
+              <button onClick={() => softDeleteProduct(selectedProduct.id, selectedProduct.name)} className="py-2 px-3 bg-red-50 border border-red-200 text-red-600 rounded-xl font-bold flex items-center justify-center">
+                <Trash2 size={14} />
+              </button>
             </div>
           </div>
         </div>
@@ -756,7 +870,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* ⚙️ MODAL: การตั้งค่า */}
+      {/* ⚙️ MODAL: การตั้งค่า + สั่งพิมพ์ PDF & ลบตัวเลือก Custom (ข้อ 1 & 2) */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-md shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto text-xs">
@@ -765,16 +879,23 @@ export default function Home() {
               <button onClick={() => setShowSettingsModal(false)} className="text-slate-400"><X size={20} /></button>
             </div>
 
+            {/* ส่งออก Excel & PDF (ข้อ 1) */}
             <div className="space-y-2">
               <h4 className="font-bold text-slate-500">📊 ส่งออกรายงาน (ประทับวันเวลาให้อัตโนมัติ)</h4>
-              <button onClick={exportToExcel} className="w-full p-2.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 rounded-2xl font-semibold flex items-center justify-center gap-1.5">
-                <FileSpreadsheet size={16} /> ดาวน์โหลดไฟล์ Excel (.csv ภาษาไทย)
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={exportToExcel} className="p-2.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 rounded-2xl font-semibold flex items-center justify-center gap-1">
+                  <FileSpreadsheet size={16} /> ไฟล์ Excel
+                </button>
+                <button onClick={exportToPDF} className="p-2.5 bg-red-50 text-red-700 dark:bg-red-950/60 rounded-2xl font-semibold flex items-center justify-center gap-1">
+                  <FileText size={16} /> รายงาน PDF
+                </button>
+              </div>
             </div>
 
+            {/* เพิ่ม/ลบ ตัวเลือก Custom (ข้อ 2) */}
             <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
-              <h4 className="font-bold text-slate-500">✏️ เพิ่มตัวเลือกใหม่ (หมวดหมู่/ขนาด/หน่วยนับ)</h4>
-              <div className="flex gap-2">
+              <h4 className="font-bold text-slate-500">✏️ จัดการตัวเลือก (เพิ่ม/ลบ หมวดหมู่ ขนาด หน่วยนับ)</h4>
+              <div className="flex gap-2 mb-2">
                 <select value={newOptionInput.type} onChange={(e) => setNewOptionInput({ ...newOptionInput, type: e.target.value })} className="p-2 border rounded-xl dark:bg-zinc-800">
                   <option value="category">หมวดหมู่</option>
                   <option value="size">ขนาด</option>
@@ -782,6 +903,21 @@ export default function Home() {
                 </select>
                 <input type="text" placeholder="ชื่อตัวเลือกใหม่..." value={newOptionInput.value} onChange={(e) => setNewOptionInput({ ...newOptionInput, value: e.target.value })} className="flex-1 p-2 border rounded-xl dark:bg-zinc-800" />
                 <button onClick={handleAddCustomOption} className="bg-emerald-600 text-white px-3 rounded-xl font-bold">+ เพิ่ม</button>
+              </div>
+
+              <!-- รายการสำหรับกดลบตัวเลือกเดิม -->
+              <div className="space-y-2 max-h-40 overflow-y-auto pt-1">
+                <p className="font-bold text-[10px] text-slate-400">รายการหมวดหมู่ที่มีอยู่ (กด ✕ เพื่อลบ):</p>
+                <div className="flex flex-wrap gap-1">
+                  {categories.map(c => (
+                    <span key={c} className="bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded-lg text-[10px] flex items-center gap-1">
+                      {c}
+                      {c !== 'ทั้งหมด' && c !== 'อื่นๆ' && (
+                        <button onClick={() => handleDeleteCustomOption('category', c)} className="text-red-500 font-bold ml-1">✕</button>
+                      )}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
