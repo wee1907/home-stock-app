@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Plus, Minus, Search, Camera, AlertTriangle, Package, Trash2, X, Eye, Sparkles, Edit3, 
-  Pin, Settings, Sun, Moon, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock
+  Pin, Settings, Sun, Moon, FileSpreadsheet, FileText, ShoppingCart, RotateCcw, Home as HomeIcon, Tag, Clock,
+  Grid, List, ChevronLeft, ChevronRight, Check
 } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,6 +21,13 @@ export default function Home() {
   const [trashItems, setTrashItems] = useState([]);
   const [mainTab, setMainTab] = useState('stock');
   const [priceSubTab, setPriceSubTab] = useState('system');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [sortBy, setSortBy] = useState('low_stock'); // 'low_stock', 'name', 'qty_asc', 'qty_desc', 'price_asc', 'price_desc', 'updated'
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+
   const [activeCategory, setActiveCategory] = useState('ทั้งหมด');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -27,10 +35,15 @@ export default function Home() {
   const [cmdProcessing, setCmdProcessing] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
 
+  // Toast Notification State (แทน alert)
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productLogs, setProductLogs] = useState([]); // ประวัติย้อนหลังเฉพาะสินค้า
+  const [fullscreenImage, setFullscreenImage] = useState(null); // รูปขยายเต็มหน้าจอ
   const [editingId, setEditingId] = useState(null);
   const [aiProcessing, setAiProcessing] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
@@ -62,12 +75,24 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    if (darkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
   }, [darkMode]);
+
+  // ล้างถังขยะที่เก่าเกิน 24 ชั่วโมง อัตโนมัติเมื่อเปิดเว็บ
+  useEffect(() => {
+    purgeOldTrash();
+  }, []);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 2500);
+  };
+
+  const purgeOldTrash = async () => {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from('products').delete().lt('deleted_at', twentyFourHoursAgo);
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -82,6 +107,11 @@ export default function Home() {
   const fetchLogs = async () => {
     const { data } = await supabase.from('usage_logs').select('*').order('created_at', { ascending: false }).limit(500);
     if (data) setLogs(data);
+  };
+
+  const fetchProductLogs = async (productId) => {
+    const { data } = await supabase.from('usage_logs').select('*').eq('product_id', productId).order('created_at', { ascending: false }).limit(50);
+    if (data) setProductLogs(data);
   };
 
   const logAction = async (productId, productName, actionType, qtyChanged) => {
@@ -99,18 +129,20 @@ export default function Home() {
       await supabase.from('usage_logs').delete().in('id', idsToDelete);
     }
     fetchLogs();
+    if (selectedProduct?.id === productId) fetchProductLogs(productId);
   };
 
   const deleteSingleLog = async (id) => {
     await supabase.from('usage_logs').delete().eq('id', id);
     setLogs(prev => prev.filter(l => l.id !== id));
+    showToast('ลบประวัติรายการนี้เรียบร้อย');
   };
 
   const clearAllLogs = async () => {
     if (confirm('คุณต้องการล้างประวัติการใช้งานทั้งหมดใช่ไหม?')) {
       await supabase.from('usage_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       setLogs([]);
-      alert('🧹 ล้างประวัติทั้งหมดเรียบร้อยแล้ว');
+      showToast('🧹 ล้างประวัติทั้งหมดเรียบร้อยแล้ว');
     }
   };
 
@@ -169,6 +201,7 @@ export default function Home() {
             size: sizes.includes(parsed.size) ? parsed.size : prev.size,
             volume: parsed.volume || prev.volume
           }));
+          showToast('✨ AI อ่านข้อมูลฉลากเรียบร้อย');
         }
       }
     } catch (err) {
@@ -192,7 +225,7 @@ export default function Home() {
 
       const aiData = await res.json();
       if (aiData.error) {
-        alert(`⚠️ AI สั่งงานไม่สำเร็จ (${aiData.error.message})`);
+        showToast(`⚠️ AI สั่งงานไม่สำเร็จ (${aiData.error.message})`, 'error');
         return;
       }
 
@@ -220,7 +253,7 @@ export default function Home() {
             const { data } = await supabase.from('products').insert([newItem]).select();
             if (data) {
               setProducts(prev => [data[0], ...prev]);
-              msg.push(`• เพิ่มรายการใหม่ "${newItem.name}" เรียบร้อย`);
+              msg.push(`เพิ่ม "${newItem.name}"`);
             }
           } else {
             const match = products.find(p => p.name.includes(cmd.target_name) || cmd.target_name.includes(p.name));
@@ -228,19 +261,19 @@ export default function Home() {
               if (cmd.action === 'DEDUCT' || cmd.action === 'ADD') {
                 const change = cmd.action === 'DEDUCT' ? -Math.abs(cmd.quantity || 1) : Math.abs(cmd.quantity || 1);
                 await updateQuantity(match.id, match.quantity + change, match.name);
-                msg.push(`• ${cmd.action === 'DEDUCT' ? 'ตัด' : 'เติม'} "${match.name}" ${Math.abs(change)} ${match.unit}`);
+                msg.push(`${cmd.action === 'DEDUCT' ? 'ตัด' : 'เติม'} "${match.name}" ${Math.abs(change)} ${match.unit}`);
               } else if (cmd.action === 'DELETE') {
                 await softDeleteProduct(match.id, match.name);
-                msg.push(`• ย้าย "${match.name}" ไปถังขยะเรียบร้อย`);
+                msg.push(`ลบ "${match.name}"`);
               }
             }
           }
         }
-        if (msg.length > 0) alert(`✅ ทำรายการสำเร็จ:\n${msg.join('\n')}`);
+        if (msg.length > 0) showToast(`✅ ${msg.join(', ')} เรียบร้อย`);
         setQuickCmd('');
       }
     } catch (err) {
-      alert('⚠️ เกิดข้อผิดพลาดในการประมวลผล');
+      showToast('⚠️ เกิดข้อผิดพลาดในการประมวลผล', 'error');
     } finally {
       setCmdProcessing(false);
     }
@@ -265,6 +298,7 @@ export default function Home() {
     setProducts(prev => prev.map(item => item.id === id ? { ...item, isPinned: newPin } : item));
     if (selectedProduct?.id === id) setSelectedProduct(prev => ({ ...prev, isPinned: newPin }));
     await supabase.from('products').update({ isPinned: newPin }).eq('id', id);
+    showToast(newPin ? '📌 ปักหมุดรายการโปรดแล้ว' : 'ถอดปักหมุดแล้ว');
   };
 
   const softDeleteProduct = async (id, name) => {
@@ -274,30 +308,31 @@ export default function Home() {
       setProducts(prev => prev.filter(x => x.id !== id));
       if (selectedProduct?.id === id) setSelectedProduct(null);
       fetchProducts();
+      showToast(`🗑️ ย้าย "${name}" ไปถังขยะแล้ว`);
     }
   };
 
   const restoreProduct = async (id) => {
     await supabase.from('products').update({ deleted_at: null }).eq('id', id);
     fetchProducts();
-    alert('♻️ กู้คืนรายการสินค้ากลับเข้าสต๊อกเรียบร้อย!');
+    showToast('♻️ กู้คืนรายการสินค้าเรียบร้อย!');
   };
 
   const handleSaveProduct = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) return alert('กรุณากรอกชื่อสินค้า');
+    if (!formData.name.trim()) return showToast('กรุณากรอกชื่อสินค้า', 'error');
 
     if (editingId) {
       await supabase.from('products').update(formData).eq('id', editingId);
       setProducts(prev => prev.map(p => p.id === editingId ? { ...p, ...formData } : p));
       if (selectedProduct?.id === editingId) setSelectedProduct({ ...selectedProduct, ...formData });
-      alert('🎉 แก้ไขข้อมูลเรียบร้อย!');
+      showToast('🎉 แก้ไขข้อมูลเรียบร้อย!');
     } else {
       const { data } = await supabase.from('products').insert([formData]).select();
       if (data) {
         setProducts([data[0], ...products]);
         logAction(data[0].id, data[0].name, 'CREATE', data[0].quantity);
-        alert('🎉 บันทึกของเข้าบ้านเรียบร้อย!');
+        showToast('🎉 บันทึกของเข้าบ้านเรียบร้อย!');
       }
     }
     setShowAddModal(false);
@@ -319,6 +354,11 @@ export default function Home() {
     setShowAddModal(true);
   };
 
+  const handleOpenDetailModal = (product) => {
+    setSelectedProduct(product);
+    fetchProductLogs(product.id);
+  };
+
   const handleAddCustomOption = () => {
     const val = newOptionInput.value.trim();
     if (!val) return;
@@ -326,7 +366,7 @@ export default function Home() {
     if (manageOptionType === 'unit' && !units.includes(val)) setUnits([...units, val]);
     if (manageOptionType === 'size' && !sizes.includes(val)) setSizes([...sizes, val]);
     setNewOptionInput({ ...newOptionInput, value: '' });
-    alert('✅ เพิ่มตัวเลือกเรียบร้อยแล้ว');
+    showToast('✅ เพิ่มตัวเลือกเรียบร้อย');
   };
 
   const handleEditCustomOption = async (type, oldVal) => {
@@ -345,7 +385,7 @@ export default function Home() {
       await supabase.from('products').update({ unit: trimmed }).eq('unit', oldVal);
     }
     fetchProducts();
-    alert('🎉 แก้ไขชื่อเรียบร้อยแล้ว');
+    showToast('🎉 แก้ไขชื่อเรียบร้อยแล้ว');
   };
 
   const handleDeleteCustomOption = async (type, itemToDelete) => {
@@ -361,7 +401,7 @@ export default function Home() {
         setUnits(units.filter(u => u !== itemToDelete));
       }
       fetchProducts();
-      alert('🗑️ ลบตัวเลือกเรียบร้อยแล้ว');
+      showToast('🗑️ ลบตัวเลือกเรียบร้อยแล้ว');
     }
   };
 
@@ -379,6 +419,7 @@ export default function Home() {
     link.href = URL.createObjectURL(blob);
     link.download = `HomeStock_Report_${new Date().toISOString().slice(0,10)}.csv`;
     link.click();
+    showToast('📊 ดาวน์โหลดไฟล์ Excel เรียบร้อย');
   };
 
   const exportToPDF = () => {
@@ -438,24 +479,50 @@ export default function Home() {
     return sum + (needToBuy * (item.price || 0));
   }, 0);
 
-  const filteredProducts = products.filter(p => {
+  // กรอง + เรียงลำดับสินค้า
+  let filteredProducts = products.filter(p => {
     const matchCat = activeCategory === 'ทั้งหมด' || p.category === activeCategory;
     const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchCat && matchSearch;
   });
 
+  filteredProducts.sort((a, b) => {
+    if (sortBy === 'low_stock') {
+      const aLow = a.quantity <= a.min_threshold ? 1 : 0;
+      const bLow = b.quantity <= b.min_threshold ? 1 : 0;
+      return bLow - aLow;
+    }
+    if (sortBy === 'name') return a.name.localeCompare(b.name, 'th');
+    if (sortBy === 'qty_asc') return a.quantity - b.quantity;
+    if (sortBy === 'qty_desc') return b.quantity - a.quantity;
+    if (sortBy === 'price_asc') return (a.price || 0) - (b.price || 0);
+    if (sortBy === 'price_desc') return (b.price || 0) - (a.price || 0);
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const pinnedProducts = products.filter(p => p.isPinned);
 
   return (
-    <div className="min-h-screen pb-24 transition-colors duration-300">
+    <div className={`min-h-screen pb-24 transition-colors duration-300 ${darkMode ? 'bg-zinc-950 text-zinc-100 dark' : 'bg-slate-50 text-slate-800'}`}>
       
+      {/* Toast Notification (สไตล์นุ่มนวล) */}
+      {toast.show && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-zinc-900/90 dark:bg-zinc-100/90 text-white dark:text-zinc-900 border border-zinc-700/50 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs animate-in fade-in slide-in-from-bottom duration-200">
+          <Check size={16} className="text-emerald-400 dark:text-emerald-600" />
+          <span className="font-semibold">{toast.message}</span>
+          <button onClick={() => setToast({ show: false, message: '', type: 'success' })} className="ml-2 text-zinc-400 hover:text-white dark:hover:text-zinc-900"><X size={14} /></button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-zinc-800/80 px-4 py-3 shadow-xs">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-emerald-500/10 dark:bg-emerald-400/10 rounded-2xl flex items-center justify-center text-xl border border-emerald-500/20">
-              🏡
-            </div>
+            <div className="w-9 h-9 bg-emerald-500/10 dark:bg-emerald-400/10 rounded-2xl flex items-center justify-center text-xl border border-emerald-500/20">🏡</div>
             <div>
               <h1 className="font-bold text-base tracking-tight bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 dark:from-emerald-400 dark:to-teal-300 bg-clip-text text-transparent">Home Stock</h1>
               <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium">จัดการของใช้ในบ้านอัจฉริยะ</p>
@@ -494,12 +561,13 @@ export default function Home() {
                   onChange={(e) => setQuickCmd(e.target.value)}
                   className="w-full bg-white/80 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/60 rounded-2xl py-3 pl-4 pr-24 text-xs focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 focus:outline-none dark:text-zinc-100 dark:placeholder-zinc-500 shadow-inner"
                 />
-                <button type="submit" disabled={cmdProcessing} className="absolute right-1.5 bg-zinc-900 dark:bg-emerald-600 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-xs transition active:scale-95">
+                <button type="submit" disabled={cmdProcessing} className="absolute right-1.5 bg-zinc-900 dark:bg-emerald-600 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-xs transition active:scale-95 disabled:opacity-70">
                   {cmdProcessing ? 'กำลังสั่ง...' : 'สั่งงาน'}
                 </button>
               </div>
             </form>
 
+            {/* Pinned Favorites */}
             {pinnedProducts.length > 0 && (
               <section className="space-y-2.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-zinc-300">
@@ -508,7 +576,7 @@ export default function Home() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {pinnedProducts.map(item => (
                     <div key={item.id} className="bg-white dark:bg-zinc-900/90 border border-amber-200/80 dark:border-amber-900/30 rounded-2xl p-3 shadow-xs flex items-center gap-2.5 hover:border-amber-400 transition">
-                      <div onClick={() => setSelectedProduct(item)} className="w-10 h-10 bg-slate-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 text-xl cursor-pointer overflow-hidden border border-slate-200/50 dark:border-zinc-700/50">
+                      <div onClick={() => handleOpenDetailModal(item)} className="w-10 h-10 bg-slate-100 dark:bg-zinc-800 rounded-xl flex items-center justify-center flex-shrink-0 text-xl cursor-pointer overflow-hidden border border-slate-200/50 dark:border-zinc-700/50">
                         {item.image_url ? <img src={item.image_url} className="w-full h-full object-contain" /> : '📦'}
                       </div>
                       <div className="flex-grow min-w-0">
@@ -526,23 +594,52 @@ export default function Home() {
               </section>
             )}
 
+            {/* Search, Sorting & View Mode Switcher */}
             <div className="space-y-3">
-              <div className="relative">
-                <Search size={16} className="absolute left-4 top-3.5 text-slate-400 dark:text-zinc-500" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs dark:text-zinc-100 dark:placeholder-zinc-500 shadow-xs focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 focus:outline-none"
-                />
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-4 top-3.5 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อสินค้า, ยี่ห้อ หรือขนาด..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl py-2.5 pl-11 pr-4 text-xs dark:text-zinc-100 dark:placeholder-zinc-500 shadow-xs focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl px-3 py-2 text-xs font-medium dark:text-zinc-200"
+                  >
+                    <option value="low_stock">⚠️ ของใกล้หมดขึ้นก่อน</option>
+                    <option value="name">🔤 ชื่อสินค้า (ก-ฮ)</option>
+                    <option value="qty_asc">🔢 จำนวน (น้อย ➔ มาก)</option>
+                    <option value="qty_desc">🔢 จำนวน (มาก ➔ น้อย)</option>
+                    <option value="price_asc">💰 ราคา (ถูก ➔ แพง)</option>
+                    <option value="price_desc">💰 ราคา (แพง ➔ ถูก)</option>
+                    <option value="updated">🕒 อัปเดตล่าสุด</option>
+                  </select>
+
+                  <div className="flex bg-slate-200/80 dark:bg-zinc-800/80 p-1 rounded-2xl">
+                    <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-xl transition ${viewMode === 'grid' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500'}`}>
+                      <Grid size={16} />
+                    </button>
+                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-xl transition ${viewMode === 'list' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500'}`}>
+                      <List size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
 
+              {/* Categories */}
               <div className="flex gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
                 {categories.map(cat => (
                   <button
                     key={cat}
-                    onClick={() => setActiveCategory(cat)}
+                    onClick={() => { setActiveCategory(cat); setCurrentPage(1); }}
                     className={`px-4 py-2 rounded-xl whitespace-nowrap transition font-medium text-xs ${activeCategory === cat ? 'bg-emerald-600 text-white font-semibold shadow-sm' : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
                   >
                     {cat}
@@ -551,21 +648,21 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Product Display */}
             {loading ? (
               <div className="text-center py-16 text-slate-400 dark:text-zinc-500 text-xs">กำลังโหลดสต๊อก...</div>
-            ) : filteredProducts.length === 0 ? (
+            ) : paginatedProducts.length === 0 ? (
               <div className="text-center py-16 bg-white dark:bg-zinc-900/60 rounded-3xl border border-dashed border-slate-200 dark:border-zinc-800 text-slate-400 dark:text-zinc-500 text-xs">ไม่พบรายการสินค้า</div>
-            ) : (
+            ) : viewMode === 'grid' ? (
+              /* GRID VIEW */
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredProducts.map(item => {
+                {paginatedProducts.map(item => {
                   const needsRefill = item.quantity <= item.min_threshold;
                   const refillDiff = item.min_threshold - item.quantity + 1;
 
                   return (
                     <div key={item.id} className="bg-white dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800/80 rounded-3xl p-3.5 shadow-xs hover:shadow-md hover:border-emerald-500/30 transition-all duration-200 flex gap-3.5 items-center relative overflow-hidden group">
-                      
-                      {/* Lockey Photo Box (ล็อคขนาดไม่ให้ยักษ์แน่นอน) */}
-                      <div onClick={() => setSelectedProduct(item)} className="w-18 h-18 max-w-[72px] max-h-[72px] bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex-shrink-0 border border-slate-200/60 dark:border-zinc-700/50 flex items-center justify-center cursor-pointer relative overflow-hidden">
+                      <div onClick={() => handleOpenDetailModal(item)} className="w-18 h-18 max-w-[72px] max-h-[72px] bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex-shrink-0 border border-slate-200/60 dark:border-zinc-700/50 flex items-center justify-center cursor-pointer relative overflow-hidden group-hover:scale-102 transition">
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="w-full h-full object-contain max-h-[72px]" />
                         ) : (
@@ -576,7 +673,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div onClick={() => setSelectedProduct(item)} className="flex-grow min-w-0 cursor-pointer space-y-1">
+                      <div onClick={() => handleOpenDetailModal(item)} className="flex-grow min-w-0 cursor-pointer space-y-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/10 dark:border-emerald-500/20 px-2 py-0.5 rounded-lg truncate max-w-full">
                             {item.category} • {item.size}
@@ -591,7 +688,7 @@ export default function Home() {
                           <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-extrabold">{item.price || 0} บ. {item.store ? `• ${item.store}` : ''}</span>
                           {needsRefill && (
                             <span className="text-[9px] bg-red-50 dark:bg-red-950/60 border border-red-200/60 dark:border-red-900/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-md font-bold truncate">
-                              ⚠️ ซื้อเพิ่ม +{refillDiff} {item.unit}
+                              ⚠️ +{refillDiff} {item.unit}
                             </span>
                           )}
                         </div>
@@ -623,10 +720,75 @@ export default function Home() {
                         </div>
                         <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-medium">ขั้นต่ำ: {item.min_threshold} {item.unit}</span>
                       </div>
-
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              /* LIST VIEW */
+              <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-3 divide-y divide-slate-100 dark:divide-zinc-800 space-y-2">
+                {paginatedProducts.map(item => (
+                  <div key={item.id} className="pt-2 flex items-center justify-between gap-3 text-xs">
+                    <div onClick={() => handleOpenDetailModal(item)} className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
+                      <div className="w-10 h-10 bg-slate-100 dark:bg-zinc-800 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-slate-200 dark:border-zinc-700">
+                        {item.image_url ? <img src={item.image_url} className="w-full h-full object-contain" /> : '📦'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold truncate text-slate-800 dark:text-zinc-100">{item.name}</h4>
+                        <p className="text-[10px] text-slate-400 truncate">{item.brand} • {item.size} • {item.category}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{item.price || 0} บ.</span>
+                      <div className="flex items-center bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl p-0.5">
+                        <button onClick={() => updateQuantity(item.id, item.quantity - 1, item.name)} className="w-5 h-5 flex items-center justify-center font-bold text-xs">-</button>
+                        <span className="w-6 text-center font-bold">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, item.quantity + 1, item.name)} className="w-5 h-5 flex items-center justify-center font-bold text-xs">+</button>
+                      </div>
+                      <span className="text-[10px] text-slate-400 w-8">{item.unit}</span>
+                      <button onClick={() => openAddModal(item)} className="p-1 text-slate-300 hover:text-emerald-600"><Edit3 size={14} /></button>
+                      <button onClick={() => softDeleteProduct(item.id, item.name)} className="p-1 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-3.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">แสดงผล:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => { setItemsPerPage(parseInt(e.target.value)); setCurrentPage(1); }}
+                    className="bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-2 py-1 font-bold"
+                  >
+                    <option value={20}>20 รายการ/หน้า</option>
+                    <option value={50}>50 รายการ/หน้า</option>
+                    <option value={100}>100 รายการ/หน้า</option>
+                    <option value={200}>200 รายการ/หน้า</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    className="p-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 disabled:opacity-40"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="font-bold text-slate-700 dark:text-zinc-200">หน้า {currentPage} / {totalPages}</span>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    className="p-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 disabled:opacity-40"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -792,14 +954,27 @@ export default function Home() {
 
       </main>
 
-      {/* MODAL: รายละเอียดสินค้า */}
+      {/* MODAL: รายละเอียดสินค้า + ขยายรูปเต็มจอ + ไทม์ไลน์ประวัติย้อนหลังเฉพาะรายการนี้ */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3.5 max-h-[90vh] overflow-y-auto text-xs relative text-slate-800 dark:text-zinc-100">
             <button onClick={() => setSelectedProduct(null)} className="absolute top-4 right-4 text-slate-400 dark:text-zinc-400 hover:text-slate-600"><X size={20} /></button>
 
-            <div className="w-full h-52 bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-zinc-800/80">
-              {selectedProduct.image_url ? <img src={selectedProduct.image_url} className="w-full h-full object-contain max-h-52" /> : <Package size={48} className="text-slate-300 dark:text-zinc-600" />}
+            {/* รูปภาพแตะแล้วขยายใหญ่เต็มจอ */}
+            <div 
+              onClick={() => selectedProduct.image_url && setFullscreenImage(selectedProduct.image_url)} 
+              className="w-full h-52 bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-zinc-800/80 cursor-pointer relative group"
+            >
+              {selectedProduct.image_url ? (
+                <>
+                  <img src={selectedProduct.image_url} className="w-full h-full object-contain max-h-52" />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition backdrop-blur-xs">
+                    <span className="text-white text-xs font-bold bg-black/50 px-3 py-1.5 rounded-xl">🔍 แตะเพื่อขยายรูปเต็มจอ</span>
+                  </div>
+                </>
+              ) : (
+                <Package size={48} className="text-slate-300 dark:text-zinc-600" />
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -807,7 +982,22 @@ export default function Home() {
               <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 mt-1">{selectedProduct.name}</h3>
               <p className="text-xs text-slate-400 dark:text-zinc-400">ยี่ห้อ: {selectedProduct.brand || 'ไม่ระบุ'} | ปริมาณ: {selectedProduct.volume || 'ไม่ระบุ'}</p>
               <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">ราคาล่าสุด: {selectedProduct.price || 0} บาท ({selectedProduct.store || 'ไม่ระบุร้าน'})</p>
-              <p className="text-xs font-bold text-slate-700 dark:text-zinc-300">สต๊อกคงเหลือ: {selectedProduct.quantity} {selectedProduct.unit} (เกณฑ์ขั้นต่ำ {selectedProduct.min_threshold} {selectedProduct.unit})</p>
+              
+              {/* ปรับจำนวนสต๊อกในหน้านี้ได้เลย */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-zinc-800">
+                <span className="font-bold text-slate-700 dark:text-zinc-300">จำนวนสต๊อก:</span>
+                <div className="flex items-center bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl p-1">
+                  <button onClick={() => updateQuantity(selectedProduct.id, selectedProduct.quantity - 1, selectedProduct.name)} className="w-7 h-7 flex items-center justify-center font-bold text-sm bg-white dark:bg-zinc-700 rounded-lg shadow-xs">-</button>
+                  <input
+                    type="number"
+                    value={selectedProduct.quantity}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => updateQuantity(selectedProduct.id, parseInt(e.target.value) || 0, selectedProduct.name)}
+                    className="w-12 text-center font-bold text-sm bg-transparent dark:text-white"
+                  />
+                  <button onClick={() => updateQuantity(selectedProduct.id, selectedProduct.quantity + 1, selectedProduct.name)} className="w-7 h-7 flex items-center justify-center font-bold text-sm bg-white dark:bg-zinc-700 rounded-lg shadow-xs">+</button>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
@@ -821,7 +1011,32 @@ export default function Home() {
                 <Trash2 size={14} />
               </button>
             </div>
+
+            {/* ประวัติเคลื่อนไหวเฉพาะสินค้าชิ้นนี้ย้อนหลัง (In-Modal Log) */}
+            <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 space-y-2">
+              <h4 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1">
+                <Clock size={14} /> <span>ประวัติย้อนหลังเฉพาะสินค้านี้</span>
+              </h4>
+              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1 text-[11px]">
+                {productLogs.length === 0 ? <p className="text-slate-400 text-center py-2">ยังไม่มีประวัติเคลื่อนไหว</p> : productLogs.map(log => (
+                  <div key={log.id} className="flex justify-between items-center bg-slate-50 dark:bg-zinc-800/60 p-2 rounded-xl">
+                    <span className={`font-bold ${log.action_type === 'DEDUCT' ? 'text-red-500' : 'text-emerald-500'}`}>
+                      {log.action_type === 'DEDUCT' ? 'นำออกใช้' : 'เติมเข้าบ้าน'} ({log.quantity_changed} {selectedProduct.unit})
+                    </span>
+                    <span className="text-slate-400 text-[10px]">{new Date(log.created_at).toLocaleString('th-TH')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* 🔍 LIGHTBOX: รูปภาพขยายใหญ่เต็มหน้าจอ 100% */}
+      {fullscreenImage && (
+        <div onClick={() => setFullscreenImage(null)} className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-md cursor-pointer animate-in fade-in duration-200">
+          <button onClick={() => setFullscreenImage(null)} className="absolute top-4 right-4 bg-zinc-800/80 text-white p-2 rounded-full hover:bg-zinc-700"><X size={24} /></button>
+          <img src={fullscreenImage} alt="Fullscreen View" className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl" />
         </div>
       )}
 
@@ -991,7 +1206,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Bottom Navigation Bar Glassmorphism */}
+      {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-t border-slate-200/80 dark:border-zinc-800/80 py-2.5 z-30 shadow-lg">
         <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
           <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 transition ${mainTab === 'stock' ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105' : 'text-slate-400 dark:text-zinc-500'}`}>
