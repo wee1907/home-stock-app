@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const DEFAULT_CATEGORIES = ['ทั้งหมด', 'ห้องครัวและของกิน', 'ห้องน้ำและทำความสะอาด', 'เครื่องสำอาง', 'อื่นๆ'];
 const DEFAULT_UNITS = ['ขวด', 'ถุง', 'ก้อน', 'กล่อง', 'กระป๋อง', 'แพ็ค', 'ชิ้น', 'ซอง', 'เส้น'];
-const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', 'ยาว'];
+const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', '2 เมตร'];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -21,8 +21,8 @@ export default function Home() {
   const [trashItems, setTrashItems] = useState([]);
   const [mainTab, setMainTab] = useState('stock');
   const [priceSubTab, setPriceSubTab] = useState('system');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [sortBy, setSortBy] = useState('low_stock'); // 'low_stock', 'name', 'qty_asc', 'qty_desc', 'price_asc', 'price_desc', 'updated'
+  const [viewMode, setViewMode] = useState('grid');
+  const [sortBy, setSortBy] = useState('low_stock');
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,15 +35,15 @@ export default function Home() {
   const [cmdProcessing, setCmdProcessing] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
 
-  // Toast Notification State (แทน alert)
+  // Toast Notification State
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [productLogs, setProductLogs] = useState([]); // ประวัติย้อนหลังเฉพาะสินค้า
-  const [fullscreenImage, setFullscreenImage] = useState(null); // รูปขยายเต็มหน้าจอ
+  const [productLogs, setProductLogs] = useState([]);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [aiProcessing, setAiProcessing] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
@@ -79,7 +79,6 @@ export default function Home() {
     else document.documentElement.classList.remove('dark');
   }, [darkMode]);
 
-  // ล้างถังขยะที่เก่าเกิน 24 ชั่วโมง อัตโนมัติเมื่อเปิดเว็บ
   useEffect(() => {
     purgeOldTrash();
   }, []);
@@ -479,7 +478,6 @@ export default function Home() {
     return sum + (needToBuy * (item.price || 0));
   }, 0);
 
-  // กรอง + เรียงลำดับสินค้า
   let filteredProducts = products.filter(p => {
     const matchCat = activeCategory === 'ทั้งหมด' || p.category === activeCategory;
     const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.brand && p.brand.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -500,7 +498,6 @@ export default function Home() {
     return new Date(b.created_at) - new Date(a.created_at);
   });
 
-  // Pagination Logic
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -509,7 +506,7 @@ export default function Home() {
   return (
     <div className={`min-h-screen pb-24 transition-colors duration-300 ${darkMode ? 'bg-zinc-950 text-zinc-100 dark' : 'bg-slate-50 text-slate-800'}`}>
       
-      {/* Toast Notification (สไตล์นุ่มนวล) */}
+      {/* Toast Notification */}
       {toast.show && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-zinc-900/90 dark:bg-zinc-100/90 text-white dark:text-zinc-900 border border-zinc-700/50 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs animate-in fade-in slide-in-from-bottom duration-200">
           <Check size={16} className="text-emerald-400 dark:text-emerald-600" />
@@ -567,7 +564,6 @@ export default function Home() {
               </div>
             </form>
 
-            {/* Pinned Favorites */}
             {pinnedProducts.length > 0 && (
               <section className="space-y-2.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-zinc-300">
@@ -594,7 +590,6 @@ export default function Home() {
               </section>
             )}
 
-            {/* Search, Sorting & View Mode Switcher */}
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
@@ -799,10 +794,10 @@ export default function Home() {
           <div className="space-y-5">
             <div className="flex bg-slate-200/80 dark:bg-zinc-800/80 p-1.5 rounded-2xl text-xs font-semibold">
               <button onClick={() => setPriceSubTab('system')} className={`flex-1 py-2.5 rounded-xl text-center transition ${priceSubTab === 'system' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-sm font-bold' : 'text-slate-500 dark:text-zinc-400'}`}>
-                🛒 รายการในระบบ & สรุปงบต้องซื้อ
+                🛒 รายการในระบบ & งบ
               </button>
               <button onClick={() => setPriceSubTab('temp')} className={`flex-1 py-2.5 rounded-xl text-center transition ${priceSubTab === 'temp' ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-sm font-bold' : 'text-slate-500 dark:text-zinc-400'}`}>
-                🧮 เครื่องคิดเลขเทียบราคา & ตะกร้าสด
+                🧮 เครื่องคิดเลข & ตะกร้าสด
               </button>
             </div>
 
@@ -835,38 +830,42 @@ export default function Home() {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* ปรับแก้ช่องตะกร้าคำนวณเงินสด ให้พอดีขอบมือถือแนวตั้ง 100% */}
                 <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3.5 shadow-xs">
                   <h4 className="font-bold text-xs text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
                     <ShoppingCart size={16} className="text-emerald-600 dark:text-emerald-400" />
-                    <span>🛒 ตะกร้าคำนวณเงินสด (เช็กยอดเงินขณะเดินหยิบของในห้าง)</span>
+                    <span>🛒 ตะกร้าคำนวณเงินสด (เช็กยอดเงินขณะเดินหยิบของ)</span>
                   </h4>
-                  <div className="flex gap-2">
+                  
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       placeholder="ชื่อสินค้า"
                       value={cartName}
                       onChange={(e) => setCartName(e.target.value)}
-                      className="flex-1 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white text-xs"
+                      className="flex-1 min-w-0 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white text-xs"
                     />
-                    <input
-                      type="number"
-                      placeholder="ราคา (บาท)"
-                      value={cartPrice}
-                      onChange={(e) => setCartPrice(e.target.value)}
-                      className="w-28 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white text-xs font-bold"
-                    />
-                    <button onClick={() => {
-                      if (!cartPrice) return;
-                      setCartItems([...cartItems, { id: Date.now(), name: cartName || 'สินค้าทั่วไป', price: parseFloat(cartPrice) }]);
-                      setCartName(''); setCartPrice('');
-                    }} className="bg-emerald-600 text-white text-xs px-4 rounded-xl font-bold active:scale-95 transition">+ ใส่ตะกร้า</button>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="ราคา (บาท)"
+                        value={cartPrice}
+                        onChange={(e) => setCartPrice(e.target.value)}
+                        className="w-1/2 sm:w-28 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white text-xs font-bold"
+                      />
+                      <button onClick={() => {
+                        if (!cartPrice) return;
+                        setCartItems([...cartItems, { id: Date.now(), name: cartName || 'สินค้าทั่วไป', price: parseFloat(cartPrice) }]);
+                        setCartName(''); setCartPrice('');
+                      }} className="w-1/2 sm:w-auto bg-emerald-600 text-white text-xs px-4 py-2.5 rounded-xl font-bold active:scale-95 transition whitespace-nowrap">+ ใส่ตะกร้า</button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
                     {cartItems.map(item => (
                       <div key={item.id} className="flex justify-between items-center bg-slate-50 dark:bg-zinc-800/80 p-2 rounded-xl text-xs dark:text-zinc-200">
-                        <span>{item.name}</span>
-                        <div className="flex items-center gap-3 font-bold">
+                        <span className="truncate pr-2">{item.name}</span>
+                        <div className="flex items-center gap-3 font-bold flex-shrink-0">
                           <span>{item.price} บาท</span>
                           <button onClick={() => setCartItems(cartItems.filter(x => x.id !== item.id))} className="text-red-500 font-bold px-1">✕</button>
                         </div>
@@ -875,14 +874,15 @@ export default function Home() {
                   </div>
 
                   <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-zinc-700 font-bold">
-                    <span className="text-xs dark:text-zinc-200">ยอดรวมในตะกร้าขณะนี้:</span>
+                    <span className="text-xs dark:text-zinc-200">ยอดรวมขณะนี้:</span>
                     <span className="text-xl text-emerald-600 dark:text-emerald-400 font-extrabold">{cartItems.reduce((sum, item) => sum + item.price, 0)} บาท</span>
                   </div>
                 </div>
 
+                {/* เครื่องคิดเลขเทียบราคา เรียงแนวนอน/แนวตั้ง นุ่มนวล */}
                 <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-4 space-y-3.5 shadow-xs">
                   <h4 className="font-bold text-xs text-slate-800 dark:text-zinc-100">⚖️ เครื่องคิดเลขเปรียบเทียบราคาเฉลี่ยต่อหน่วย</h4>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div className="space-y-2 bg-slate-50 dark:bg-zinc-800/50 p-3.5 rounded-2xl border border-slate-200/60 dark:border-zinc-700/60">
                       <span className="font-bold text-emerald-600 dark:text-emerald-400">ตัวเลือก 1 (เช่น ขวด)</span>
                       <input type="number" placeholder="ราคา (บาท)" value={tempCalc.p1} onChange={(e) => setTempCalc({ ...tempCalc, p1: e.target.value })} className="w-full p-2 rounded-xl border border-slate-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white text-xs" />
@@ -954,13 +954,12 @@ export default function Home() {
 
       </main>
 
-      {/* MODAL: รายละเอียดสินค้า + ขยายรูปเต็มจอ + ไทม์ไลน์ประวัติย้อนหลังเฉพาะรายการนี้ */}
+      {/* MODAL: รายละเอียดสินค้า */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3.5 max-h-[90vh] overflow-y-auto text-xs relative text-slate-800 dark:text-zinc-100">
             <button onClick={() => setSelectedProduct(null)} className="absolute top-4 right-4 text-slate-400 dark:text-zinc-400 hover:text-slate-600"><X size={20} /></button>
 
-            {/* รูปภาพแตะแล้วขยายใหญ่เต็มจอ */}
             <div 
               onClick={() => selectedProduct.image_url && setFullscreenImage(selectedProduct.image_url)} 
               className="w-full h-52 bg-slate-100 dark:bg-zinc-800/80 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-zinc-800/80 cursor-pointer relative group"
@@ -983,7 +982,6 @@ export default function Home() {
               <p className="text-xs text-slate-400 dark:text-zinc-400">ยี่ห้อ: {selectedProduct.brand || 'ไม่ระบุ'} | ปริมาณ: {selectedProduct.volume || 'ไม่ระบุ'}</p>
               <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">ราคาล่าสุด: {selectedProduct.price || 0} บาท ({selectedProduct.store || 'ไม่ระบุร้าน'})</p>
               
-              {/* ปรับจำนวนสต๊อกในหน้านี้ได้เลย */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-zinc-800">
                 <span className="font-bold text-slate-700 dark:text-zinc-300">จำนวนสต๊อก:</span>
                 <div className="flex items-center bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl p-1">
@@ -1012,7 +1010,6 @@ export default function Home() {
               </button>
             </div>
 
-            {/* ประวัติเคลื่อนไหวเฉพาะสินค้าชิ้นนี้ย้อนหลัง (In-Modal Log) */}
             <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 space-y-2">
               <h4 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1">
                 <Clock size={14} /> <span>ประวัติย้อนหลังเฉพาะสินค้านี้</span>
@@ -1032,7 +1029,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* 🔍 LIGHTBOX: รูปภาพขยายใหญ่เต็มหน้าจอ 100% */}
+      {/* LIGHTBOX: รูปภาพขยายใหญ่เต็มหน้าจอ 100% */}
       {fullscreenImage && (
         <div onClick={() => setFullscreenImage(null)} className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-md cursor-pointer animate-in fade-in duration-200">
           <button onClick={() => setFullscreenImage(null)} className="absolute top-4 right-4 bg-zinc-800/80 text-white p-2 rounded-full hover:bg-zinc-700"><X size={24} /></button>
