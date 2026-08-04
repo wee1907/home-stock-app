@@ -6,31 +6,27 @@ export async function POST(req) {
     const apiKey = (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '').trim();
 
     if (!apiKey) {
-      return NextResponse.json({ error: { message: 'ไม่พบคีย์ AI บน Vercel' } }, { status: 400 });
+      return NextResponse.json({ error: 'ไม่พบคีย์ AI บน Vercel' }, { status: 200 });
     }
 
     let messages = [];
-    let model = 'llama-3.2-90b-vision-preview';
+    let model = 'llama-3.2-11b-vision-instruct';
 
     if (type === 'scan-image') {
+      // สำหรับสแกนรูปภาพ รวมข้อความสั่งการเข้าไปใน role: user โดยตรง (ป้องกัน Error 400)
+      const formattedImage = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
       messages = [
-        {
-          role: 'system',
-          content: `คุณคือ AI ผู้เชี่ยวชาญอ่านฉลากสินค้าอุปโภคบริโภคภาษาไทย ตอบกลับเป็น JSON เพียงอย่างเดียว ห้ามมี markdown ห้ามมีคำอธิบายใดๆ นอกเหนือจาก JSON
-
-โครงสร้างที่ต้องตอบ (ทุก field เป็น string):
-{"name": "ชื่อสินค้าตามฉลาก", "brand": "ชื่อยี่ห้อ", "category": "หมวดหมู่กว้างๆ เช่น ของกิน ของใช้ห้องน้ำ เครื่องสำอาง", "unit": "หน่วยนับบรรจุภัณฑ์ เช่น ขวด ถุง กล่อง กระป๋อง", "size": "ขนาดสัมพัทธ์ เล็ก กลาง ใหญ่", "volume": "ปริมาณสุทธิตามฉลากตรงตัว เช่น 500ml 1kg 250g"}
-
-กฎสำคัญ:
-- ถ้าอ่านตัวอักษรในรูปไม่ชัดหรือไม่มั่นใจ ให้ใส่ "" ในช่องนั้น ห้ามเดาหรือสร้างข้อมูลขึ้นเอง
-- ถ้าฉลากมีตัวเลขปริมาณหลายจุด ให้เลือกเฉพาะปริมาณสุทธิ (Net Weight/Volume) เท่านั้น
-- ตอบเป็น JSON object เดียวเท่านั้น`
-        },
         {
           role: 'user',
           content: [
-            { type: 'text', text: 'สกัดข้อมูลฉลากสินค้านี้ลง JSON:' },
-            { type: 'image_url', image_url: { url: `data:image/webp;base64,${image}` } }
+            {
+              type: 'text',
+              text: 'คุณคือ AI อ่านฉลากสินค้า อ่านฉลากสินค้านี้แล้วตอบเป็น JSON ภาษาไทยแบบนี้เท่านั้น ห้ามมี markdown หรือข้อความอื่นเด็ดขาด: {"name": "ชื่อสินค้า", "brand": "ยี่ห้อ", "category": "ห้องครัวและของกิน หรือ ห้องน้ำและทำความสะอาด หรือ เครื่องสำอาง หรือ อื่นๆ", "unit": "ขวด หรือ ถุง หรือ ก้อน หรือ กล่อง หรือ แพ็ค หรือ ชิ้น", "size": "เล็ก หรือ กลาง หรือ ใหญ่ หรือ ถุงเติม", "volume": "ปริมาณระบุบนซอง"}'
+            },
+            {
+              type: 'image_url',
+              image_url: { url: formattedImage }
+            }
           ]
         }
       ];
@@ -39,7 +35,7 @@ export async function POST(req) {
       messages = [
         {
           role: 'system',
-          content: 'คุณคือ AI ถอดเจตนาการจัดการสต๊อกบ้านภาษาไทย เข้าใจคำสแลง พิมพ์ผิด สั่งเพิ่ม/ลบ/เติม/ตัด หลายอย่างพร้อมกันได้ ให้ตอบเป็น JSON Array เสมอ โครงสร้าง: [{"action": "CREATE" หรือ "DEDUCT" หรือ "ADD" หรือ "DELETE", "target_name": "ชื่อสินค้า", "brand": "ยี่ห้อถ้ามี", "size": "ขนาดถ้ามี", "quantity": จำนวนเลข, "price": ราคาเลขถ้ามี, "unit": "หน่วยนับถ้ามี"}]'
+          content: 'คุณคือ AI ถอดเจตนาการจัดการสต๊อกบ้านภาษาไทย ตอบเฉพาะ JSON Array เสมอ โครงสร้าง: [{"action": "CREATE" หรือ "DEDUCT" หรือ "ADD" หรือ "DELETE", "target_name": "ชื่อสินค้า", "brand": "ยี่ห้อถ้ามี", "size": "ขนาดถ้ามี", "quantity": จำนวนเลข, "price": ราคาเลขถ้ามี, "unit": "หน่วยนับถ้ามี"}]'
         },
         {
           role: 'user',
@@ -51,24 +47,16 @@ export async function POST(req) {
       messages = [
         {
           role: 'system',
-          content: `คุณคือ AI ช่วยจดตะกร้าคำนวณเงินสดภาษาไทย ถอดเจตนาจากประโยคที่พิมพ์ขณะเดินซื้อของ ตอบเป็น JSON Array เสมอ ห้ามมีข้อความอื่นนอกจาก JSON
-
-โครงสร้าง: [{"action": "ADD" หรือ "UPDATE", "name": "ชื่อสินค้า", "price": ราคาเป็นตัวเลข}]
-
-กฎ:
-- ถ้าประโยคพูดถึงการเพิ่มของใหม่ลงตะกร้า ให้ใช้ action "ADD"
-- ถ้าประโยคพูดถึงการแก้ไข/เปลี่ยนราคาของที่มีอยู่แล้ว ให้ใช้ action "UPDATE"
-- ประโยคเดียวอาจมีหลายรายการ ให้แตกเป็นหลาย object ใน array ได้
-- price ต้องเป็นตัวเลขเท่านั้น ไม่ใส่หน่วยบาท`
+          content: 'คุณคือ AI ตะกร้าสินค้า ตอบเฉพาะ JSON Array เสมอ โครงสร้าง: [{"action": "ADD" หรือ "UPDATE", "name": "ชื่อสินค้า", "price": ราคาเลข}]'
         },
         {
           role: 'user',
-          content: `ถอดเจตนาประโยคตะกร้านี้: "${prompt}"`
+          content: `ถอดเจตนาประโยคใส่ตะกร้านี้: "${prompt}"`
         }
       ];
     }
 
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    let res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,16 +69,35 @@ export async function POST(req) {
       })
     });
 
-    const data = await res.json();
+    let data = await res.json();
+
+    // สำรอง: หากโมเดลแรกมีปัญหา ให้ลองสำรองด้วยโมเดล 90b
+    if (data.error && type === 'scan-image') {
+      res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.2-90b-vision-preview',
+          messages: messages,
+          temperature: 0.1
+        })
+      });
+      data = await res.json();
+    }
+
     if (data.error) {
-      return NextResponse.json({ error: { message: data.error.message } }, { status: 400 });
+      return NextResponse.json({ error: data.error.message || 'เกิดข้อผิดพลาดจาก AI' }, { status: 200 });
     }
 
     const contentText = data.choices?.[0]?.message?.content || '';
     return NextResponse.json({
       candidates: [{ content: { parts: [{ text: contentText }] } }]
-    });
+    }, { status: 200 });
+
   } catch (err) {
-    return NextResponse.json({ error: { message: err.message } }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 200 });
   }
 }
