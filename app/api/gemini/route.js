@@ -13,7 +13,6 @@ export async function POST(req) {
     let model = 'llama-3.2-11b-vision-instruct';
 
     if (type === 'scan-image') {
-      // สำหรับสแกนรูปภาพ รวมข้อความสั่งการเข้าไปใน role: user โดยตรง (ป้องกัน Error 400)
       const formattedImage = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
       messages = [
         {
@@ -71,7 +70,7 @@ export async function POST(req) {
 
     let data = await res.json();
 
-    // สำรอง: หากโมเดลแรกมีปัญหา ให้ลองสำรองด้วยโมเดล 90b
+    // สำรอง: หากโมเดลแรกติดขัด ให้สลับใช้โมเดลรุ่นใหญ่ 90b-instruct
     if (data.error && type === 'scan-image') {
       res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -80,7 +79,7 @@ export async function POST(req) {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'llama-3.2-90b-vision-preview',
+          model: 'llama-3.2-90b-vision-instruct',
           messages: messages,
           temperature: 0.1
         })
