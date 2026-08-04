@@ -10,7 +10,8 @@ export async function POST(req) {
     }
 
     let messages = [];
-    let model = 'llama-3.2-11b-vision-instruct';
+    // ใช้โมเดล Qwen 3.6 (สำหรับสแกนรูป) และ GPT-OSS 120B (สำหรับอ่านคำสั่งแชท) ตามที่คุณต้องการ
+    let model = type === 'scan-image' ? 'qwen/qwen3.6-27b' : 'openai/gpt-oss-120b';
 
     if (type === 'scan-image') {
       const formattedImage = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
@@ -30,7 +31,6 @@ export async function POST(req) {
         }
       ];
     } else if (type === 'quick-command') {
-      model = 'llama-3.3-70b-versatile';
       messages = [
         {
           role: 'system',
@@ -42,7 +42,6 @@ export async function POST(req) {
         }
       ];
     } else if (type === 'cart-command') {
-      model = 'llama-3.3-70b-versatile';
       messages = [
         {
           role: 'system',
@@ -55,11 +54,18 @@ export async function POST(req) {
       ];
     }
 
-    let res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // รองรับทั้งคีย์ OpenRouter และ คีย์ Groq
+    const endpoint = apiKey.startsWith('sk-or-') 
+      ? 'https://openrouter.ai/api/v1/chat/completions'
+      : 'https://api.groq.com/openai/v1/chat/completions';
+
+    let res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://home-stock-app.vercel.app',
+        'X-Title': 'Home Stock App'
       },
       body: JSON.stringify({
         model: model,
@@ -70,8 +76,9 @@ export async function POST(req) {
 
     let data = await res.json();
 
-    // สำรอง: หากโมเดลแรกติดขัด ให้สลับใช้โมเดลรุ่นใหญ่ 90b-instruct
-    if (data.error && type === 'scan-image') {
+    // สำรอง: หากคีย์ Groq ไม่พบโมเดล Qwen ให้สลับใช้โมเดล Vision ของ Groq ให้อัตโนมัติ
+    if (data.error && !apiKey.startsWith('sk-or-')) {
+      const fallbackModel = type === 'scan-image' ? 'llama-3.2-11b-vision-instruct' : 'llama-3.3-70b-versatile';
       res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -79,7 +86,7 @@ export async function POST(req) {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'llama-3.2-90b-vision-instruct',
+          model: fallbackModel,
           messages: messages,
           temperature: 0.1
         })
@@ -97,6 +104,6 @@ export async function POST(req) {
     }, { status: 200 });
 
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 200 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
