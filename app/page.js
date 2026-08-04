@@ -318,17 +318,37 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     showToast('♻️ กู้คืนรายการสินค้าเรียบร้อย!');
   };
 
+const uploadImageIfNeeded = async (base64DataUrl) => {
+    if (!base64DataUrl || !base64DataUrl.startsWith('data:')) return base64DataUrl;
+    const res = await fetch(base64DataUrl);
+    const blob = await res.blob();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(fileName, blob, { contentType: 'image/webp' });
+
+    if (uploadError) {
+      console.log('Upload failed, keeping base64 fallback:', uploadError.message);
+      return base64DataUrl;
+    }
+    const { data: publicUrlData } = supabase.storage.from('product-images').getPublicUrl(fileName);
+    return publicUrlData.publicUrl;
+  };
+
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) return showToast('กรุณากรอกชื่อสินค้า', 'error');
 
+    const finalImageUrl = await uploadImageIfNeeded(formData.image_url);
+    const dataToSave = { ...formData, image_url: finalImageUrl };
+
     if (editingId) {
-      await supabase.from('products').update(formData).eq('id', editingId);
-      setProducts(prev => prev.map(p => p.id === editingId ? { ...p, ...formData } : p));
-      if (selectedProduct?.id === editingId) setSelectedProduct({ ...selectedProduct, ...formData });
+      await supabase.from('products').update(dataToSave).eq('id', editingId);
+      setProducts(prev => prev.map(p => p.id === editingId ? { ...p, ...dataToSave } : p));
+      if (selectedProduct?.id === editingId) setSelectedProduct({ ...selectedProduct, ...dataToSave });
       showToast('🎉 แก้ไขข้อมูลเรียบร้อย!');
     } else {
-      const { data } = await supabase.from('products').insert([formData]).select();
+      const { data } = await supabase.from('products').insert([dataToSave]).select();
       if (data) {
         setProducts([data[0], ...products]);
         logAction(data[0].id, data[0].name, 'CREATE', data[0].quantity);
