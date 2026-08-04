@@ -46,6 +46,26 @@ export async function POST(req) {
           content: `ถอดเจตนาประโยคสั่งงานนี้: "${prompt}"`
         }
       ];
+    } else if (type === 'cart-command') {
+      model = 'llama-3.3-70b-versatile';
+      messages = [
+        {
+          role: 'system',
+          content: `คุณคือ AI ช่วยจดตะกร้าคำนวณเงินสดภาษาไทย ถอดเจตนาจากประโยคที่พิมพ์ขณะเดินซื้อของ ตอบเป็น JSON Array เสมอ ห้ามมีข้อความอื่นนอกจาก JSON
+
+โครงสร้าง: [{"action": "ADD" หรือ "UPDATE", "name": "ชื่อสินค้า", "price": ราคาเป็นตัวเลข}]
+
+กฎ:
+- ถ้าประโยคพูดถึงการเพิ่มของใหม่ลงตะกร้า ให้ใช้ action "ADD"
+- ถ้าประโยคพูดถึงการแก้ไข/เปลี่ยนราคาของที่มีอยู่แล้ว ให้ใช้ action "UPDATE"
+- ประโยคเดียวอาจมีหลายรายการ ให้แตกเป็นหลาย object ใน array ได้
+- price ต้องเป็นตัวเลขเท่านั้น ไม่ใส่หน่วยบาท`
+        },
+        {
+          role: 'user',
+          content: `ถอดเจตนาประโยคตะกร้านี้: "${prompt}"`
+        }
+      ];
     }
 
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
