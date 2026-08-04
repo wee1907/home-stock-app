@@ -3,5 +3,13 @@
 @tailwind utilities;
 
 body {
-  font-family: 'Prompt', sans-serif;
+  font-family: 'IBM Plex Sans Thai', 'Prompt', sans-serif;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
