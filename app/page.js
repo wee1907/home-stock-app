@@ -145,7 +145,7 @@ export default function Home() {
     }
   };
 
-  const compressImage = (file, maxWidth = 500, quality = 0.6) => {
+const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -171,29 +171,10 @@ export default function Home() {
 
     setAiProcessing(true);
     try {
-      const base64Image = await compressImage(file);
-      setImagePreview(base64Image);
-      setFormData((prev) => ({ ...prev, image_url: base64Image }));
-
-      const pureBase64 = base64Image.split(',')[1];
-      const res = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'scan-image', image: pureBase64 })
-      });
-
-      const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setAiProcessing(true);
-    try {
-      // รูปเล็กสำหรับเก็บถาวรลงระบบ (เหมือนเดิมทุกอย่าง ไม่กระทบพื้นที่เก็บ)
       const storageImage = await compressImage(file, 500, 0.6);
       setImagePreview(storageImage);
       setFormData((prev) => ({ ...prev, image_url: storageImage }));
 
-      // รูปความละเอียดสูงขึ้น ใช้แค่ตอนส่งให้ AI อ่านฉลากครั้งเดียว แล้วทิ้ง ไม่เก็บที่ไหน
       const aiImage = await compressImage(file, 1024, 0.85);
       const pureBase64 = aiImage.split(',')[1];
 
