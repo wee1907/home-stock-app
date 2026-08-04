@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const DEFAULT_CATEGORIES = ['ทั้งหมด', 'ห้องครัวและของกิน', 'ห้องน้ำและทำความสะอาด', 'เครื่องสำอาง', 'อื่นๆ'];
 const DEFAULT_UNITS = ['ขวด', 'ถุง', 'ก้อน', 'กล่อง', 'กระป๋อง', 'แพ็ค', 'ชิ้น', 'ซอง', 'เส้น'];
-const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', '2 เมตร'];
+const DEFAULT_SIZES = ['เล็ก', 'กลาง', 'ใหญ่', 'ถุงเติม', 'ขวดใหญ่', 'จัมโบ้', 'ยาว'];
 
 export default function Home() {
   const [products, setProducts] = useState([]);
@@ -145,7 +145,7 @@ export default function Home() {
     }
   };
 
-  const compressImage = (file) => {
+  const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -154,13 +154,12 @@ export default function Home() {
         img.src = event.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 500;
-          const scaleFactor = MAX_WIDTH / img.width;
-          canvas.width = MAX_WIDTH;
+          const scaleFactor = Math.min(1, maxWidth / img.width);
+          canvas.width = img.width * scaleFactor;
           canvas.height = img.height * scaleFactor;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/webp', 0.6));
+          resolve(canvas.toDataURL('image/webp', quality));
         };
       };
     });
@@ -177,6 +176,27 @@ export default function Home() {
       setFormData((prev) => ({ ...prev, image_url: base64Image }));
 
       const pureBase64 = base64Image.split(',')[1];
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'scan-image', image: pureBase64 })
+      });
+
+      const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setAiProcessing(true);
+    try {
+      // รูปเล็กสำหรับเก็บถาวรลงระบบ (เหมือนเดิมทุกอย่าง ไม่กระทบพื้นที่เก็บ)
+      const storageImage = await compressImage(file, 500, 0.6);
+      setImagePreview(storageImage);
+      setFormData((prev) => ({ ...prev, image_url: storageImage }));
+
+      // รูปความละเอียดสูงขึ้น ใช้แค่ตอนส่งให้ AI อ่านฉลากครั้งเดียว แล้วทิ้ง ไม่เก็บที่ไหน
+      const aiImage = await compressImage(file, 1024, 0.85);
+      const pureBase64 = aiImage.split(',')[1];
+
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
