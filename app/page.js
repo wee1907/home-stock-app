@@ -419,10 +419,10 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
   const togglePin = async (id) => {
     const p = products.find(x => x.id === id);
     if (!p) return;
-    const newPin = !p.isPinned;
-    setProducts(prev => prev.map(item => item.id === id ? { ...item, isPinned: newPin } : item));
-    if (selectedProduct?.id === id) setSelectedProduct(prev => ({ ...prev, isPinned: newPin }));
-    await supabase.from('products').update({ isPinned: newPin }).eq('id', id);
+    const newPin = !p.is_pinned;
+    setProducts(prev => prev.map(item => item.id === id ? { ...item, is_pinned: newPin } : item));
+    if (selectedProduct?.id === id) setSelectedProduct(prev => ({ ...prev, is_pinned: newPin }));
+    await supabase.from('products').update({ is_pinned: newPin }).eq('id', id);
     showToast(newPin ? '📌 ปักหมุดรายการโปรดแล้ว' : 'ถอดปักหมุดแล้ว');
   };
 
@@ -665,7 +665,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const pinnedProducts = products.filter(p => p.isPinned);
+  const pinnedProducts = products.filter(p => p.is_pinned);
 
   const unitPrice1 = tempCalc.p1 && tempCalc.v1 ? parseFloat(tempCalc.p1) / parseFloat(tempCalc.v1) : null;
   const unitPrice2 = tempCalc.p2 && tempCalc.v2 ? parseFloat(tempCalc.p2) / parseFloat(tempCalc.v2) : null;
@@ -880,7 +880,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => togglePin(item.id)} className="p-1 rounded-lg hover:bg-ink-100 dark:hover:bg-ink-800 transition">
-                            <Pin size={14} className={item.isPinned ? 'fill-honey-500 text-honey-500' : 'text-ink-300 dark:text-ink-600'} />
+                            <Pin size={14} className={item.is_pinned ? 'fill-honey-500 text-honey-500' : 'text-ink-300 dark:text-ink-600'} />
                           </button>
                           <button onClick={() => openAddModal(item)} className="p-1 text-ink-300 dark:text-ink-600 hover:text-clay-600 transition">
                             <Edit3 size={14} />
@@ -1277,8 +1277,8 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
             </div>
 
             <div className="flex gap-2 pt-2 border-t border-ink-100 dark:border-ink-800">
-              <button onClick={() => togglePin(selectedProduct.id)} className={`flex-1 py-2.5 rounded-xl border flex items-center justify-center gap-1 font-bold transition ${selectedProduct.isPinned ? 'bg-honey-50 border-honey-200 text-honey-600 dark:bg-honey-950/50 dark:border-honey-900 dark:text-honey-400' : 'border-ink-200 dark:border-ink-700 text-ink-600 dark:text-ink-300'}`}>
-                <Pin size={14} /> {selectedProduct.isPinned ? 'ปักหมุดอยู่' : 'ปักหมุด'}
+              <button onClick={() => togglePin(selectedProduct.id)} className={`flex-1 py-2.5 rounded-xl border flex items-center justify-center gap-1 font-bold transition ${selectedProduct.is_pinned ? 'bg-honey-50 border-honey-200 text-honey-600 dark:bg-honey-950/50 dark:border-honey-900 dark:text-honey-400' : 'border-ink-200 dark:border-ink-700 text-ink-600 dark:text-ink-300'}`}>
+                <Pin size={14} /> {selectedProduct.is_pinned ? 'ปักหมุดอยู่' : 'ปักหมุด'}
               </button>
               <button onClick={() => { setSelectedProduct(null); openAddModal(selectedProduct); }} className="flex-1 py-2.5 bg-clay-50 border border-clay-200 text-clay-600 dark:bg-clay-950/60 dark:border-clay-900 dark:text-clay-400 rounded-xl font-bold flex items-center justify-center gap-1 transition">
                 <Edit3 size={14} /> แก้ไข
