@@ -13,3 +13,16 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/*
+  แอปนี้ถูกออกแบบ (spacing/ตัวอักษร) แบบมือถือเป็นหลัก การขยายขนาดฐาน (root font-size)
+  ที่จอกว้างขึ้น ทำให้ทุก utility ที่อิง rem ของ Tailwind (ตัวอักษร, padding, ความกว้าง
+  การ์ด ฯลฯ) ขยายตามสัดส่วนโดยอัตโนมัติ โดยไม่ต้องแก้ class ทีละจุด — มือถือยังคงเดิม
+  ทุกประการเพราะ media query นี้เริ่มทำงานตั้งแต่จอแท็บเล็ต/คอมขึ้นไปเท่านั้น
+*/
+@media (min-width: 1024px) {
+  html { font-size: 17px; }
+}
+@media (min-width: 1440px) {
+  html { font-size: 18.5px; }
+}
