@@ -67,9 +67,6 @@ export default function Home() {
 
   // Temporary Price Compare Calculator State
   const [tempCalc, setTempCalc] = useState({ p1: '', v1: '', p2: '', v2: '' });
-  const [calcItemName, setCalcItemName] = useState('');
-  const [calcItemQty, setCalcItemQty] = useState(1);
-  const [calcAdding, setCalcAdding] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -342,19 +339,20 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
         let msg = [];
         for (const cmd of cmds) {
           const price = parseFloat(cmd.price) || 0;
+          const qty = Math.max(1, parseInt(cmd.qty) || 1);
           const name = cmd.name || 'สินค้าทั่วไป';
           if (cmd.action === 'UPDATE') {
             const idx = workingCart.findIndex(x => x.name.includes(name) || name.includes(x.name));
             if (idx >= 0) {
-              workingCart[idx] = { ...workingCart[idx], price };
-              msg.push(`แก้ "${workingCart[idx].name}" เป็น ${price} บาท`);
+              workingCart[idx] = { ...workingCart[idx], price, qty };
+              msg.push(`แก้ "${workingCart[idx].name}" เป็น x${qty} รวม ${price} บาท`);
             } else {
-              workingCart.push({ id: Date.now() + Math.random(), name, price, qty: 1 });
-              msg.push(`เพิ่ม "${name}" ${price} บาท`);
+              workingCart.push({ id: Date.now() + Math.random(), name, price, qty });
+              msg.push(`เพิ่ม "${name}" x${qty} รวม ${price} บาท`);
             }
           } else {
-            workingCart.push({ id: Date.now() + Math.random(), name, price, qty: 1 });
-            msg.push(`เพิ่ม "${name}" ${price} บาท`);
+            workingCart.push({ id: Date.now() + Math.random(), name, price, qty });
+            msg.push(`เพิ่ม "${name}" x${qty} รวม ${price} บาท`);
           }
         }
         setCartItems(workingCart);
@@ -366,24 +364,6 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     } finally {
       setCartCmdProcessing(false);
     }
-  };
-
-  const getCalcChosenOption = () => {
-    // ใช้ตัวเลือกที่คุ้มกว่าถ้าเทียบได้ทั้งคู่ ไม่งั้นใช้ตัวไหนก็ตามที่กรอกราคาไว้
-    if (cheaperOption === 1) return { price: parseFloat(tempCalc.p1) || 0 };
-    if (cheaperOption === 2) return { price: parseFloat(tempCalc.p2) || 0 };
-    if (tempCalc.p1) return { price: parseFloat(tempCalc.p1) || 0 };
-    if (tempCalc.p2) return { price: parseFloat(tempCalc.p2) || 0 };
-    return null;
-  };
-
-  const addCalcResultToCart = () => {
-    const chosen = getCalcChosenOption();
-    if (!chosen || !chosen.price) return showToast('กรุณากรอกราคาในเครื่องคิดเลขก่อน', 'error');
-    const qty = Math.max(1, parseInt(calcItemQty) || 1);
-    const name = calcItemName.trim() || 'สินค้าทดลองคำนวณ';
-    setCartItems(prev => [...prev, { id: Date.now(), name, price: chosen.price * qty }]);
-    showToast(`🛒 เพิ่ม "${name}" x${qty} เข้าตะกร้าเรียบร้อย`);
   };
 
   const upsertProductToStock = async (name, qty, price) => {
@@ -414,19 +394,6 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
       showToast(`⚠️ เกิดข้อผิดพลาด: ${err.message}`, 'error');
       return false;
     }
-  };
-
-  const addCalcResultToStock = async () => {
-    const chosen = getCalcChosenOption();
-    if (!chosen || !chosen.price) return showToast('กรุณากรอกราคาในเครื่องคิดเลขก่อน', 'error');
-    if (!calcItemName.trim()) return showToast('กรุณากรอกชื่อสินค้าก่อนเพิ่มเข้าสต๊อก', 'error');
-
-    setCalcAdding(true);
-    const qty = Math.max(1, parseInt(calcItemQty) || 1);
-    const name = calcItemName.trim();
-    const ok = await upsertProductToStock(name, qty, chosen.price);
-    if (ok) { setCalcItemName(''); setCalcItemQty(1); }
-    setCalcAdding(false);
   };
 
   const addCartItemToStock = async (item) => {
@@ -712,7 +679,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
   }
 
   return (
-    <div className={`min-h-screen pb-24 transition-colors duration-300 font-sans ${darkMode ? 'bg-ink-950 text-ink-100 dark' : 'bg-cream text-ink-800'}`}>
+    <div className={`min-h-screen pb-24 lg:pb-10 transition-colors duration-300 font-sans ${darkMode ? 'bg-ink-950 text-ink-100 dark' : 'bg-cream text-ink-800'}`}>
       
       {/* Toast Notification */}
       {toast.show && (
@@ -725,7 +692,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
 
       {/* Header */}
       <header className="sticky top-0 z-30 bg-cream-50/85 dark:bg-ink-900/85 backdrop-blur-xl border-b border-gold-300/50 dark:border-gold-900/40 px-4 py-3 shadow-[0_1px_0_0_rgba(180,137,62,0.15)]">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <button onClick={() => setMainTab('stock')} className="flex items-center gap-2.5 active:scale-95 transition text-left">
             <div className="w-9 h-9 bg-clay-500/10 dark:bg-clay-400/10 rounded-2xl flex items-center justify-center text-xl border border-clay-500/20">🏡</div>
             <div>
@@ -733,6 +700,18 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
               <p className="text-[10px] text-ink-400 dark:text-ink-500 font-medium">จัดการของใช้ในบ้านอัจฉริยะ</p>
             </div>
           </button>
+
+          <nav className="hidden lg:flex items-center gap-1 bg-ink-100/60 dark:bg-ink-800/60 rounded-2xl p-1">
+            <button onClick={() => setMainTab('stock')} className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 ${mainTab === 'stock' ? 'bg-cream-50 dark:bg-ink-900 text-clay-600 dark:text-clay-400 shadow-sm' : 'text-ink-500 dark:text-ink-400'}`}>
+              <HomeIcon size={16} /> สต๊อกบ้าน
+            </button>
+            <button onClick={() => setMainTab('price')} className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 ${mainTab === 'price' ? 'bg-cream-50 dark:bg-ink-900 text-clay-600 dark:text-clay-400 shadow-sm' : 'text-ink-500 dark:text-ink-400'}`}>
+              <Tag size={16} /> เช็กราคา & ซื้อของ
+            </button>
+            <button onClick={() => setMainTab('history')} className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 ${mainTab === 'history' ? 'bg-cream-50 dark:bg-ink-900 text-clay-600 dark:text-clay-400 shadow-sm' : 'text-ink-500 dark:text-ink-400'}`}>
+              <Clock size={16} /> ประวัติ & ถังขยะ
+            </button>
+          </nav>
 
           <div className="flex items-center gap-2">
             <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-2xl bg-ink-100 dark:bg-ink-800 text-ink-600 dark:text-ink-300 hover:scale-105 active:scale-95 transition">
@@ -748,7 +727,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 pt-5">
+      <main className="max-w-7xl mx-auto px-4 pt-5">
 
         {/* PAGE 1: สต๊อกบ้าน */}
         {mainTab === 'stock' && (
@@ -1064,7 +1043,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                   <form onSubmit={handleCartCommand} className="relative flex items-center">
                     <input
                       type="text"
-                      placeholder="✨ พิมพ์ให้ AI ใส่ตะกร้า เช่น 'นมข้นหวาน 25 บาท' หรือ 'แก้ราคานมข้นหวานเป็น 20'"
+                      placeholder="✨ พิมพ์ให้ AI ใส่ตะกร้า เช่น 'ยาหม่อง 2 ขวด ขวดละ 20 บาท' หรือ 'แก้ราคานมข้นหวานเป็น 20'"
                       value={cartCmd}
                       onChange={(e) => setCartCmd(e.target.value)}
                       className="w-full bg-honey-50 dark:bg-honey-950/20 border border-honey-300/70 dark:border-honey-900/50 rounded-xl py-2.5 pl-3 pr-20 text-xs focus:ring-2 focus:ring-honey-400/40 focus:border-honey-500 focus:outline-none dark:text-ink-100 dark:placeholder-ink-500"
@@ -1162,35 +1141,6 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                       <input type="number" placeholder="ราคา (บาท)" value={tempCalc.p2} onChange={(e) => setTempCalc({ ...tempCalc, p2: e.target.value })} className="w-full p-2 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-900 dark:text-white text-xs" />
                       <input type="number" placeholder="ปริมาณ (ml/กรัม)" value={tempCalc.v2} onChange={(e) => setTempCalc({ ...tempCalc, v2: e.target.value })} className="w-full p-2 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-900 dark:text-white text-xs" />
                       <p className="text-xs font-extrabold pt-1 dark:text-ink-200 font-mono">ตกหน่วยละ: {unitPrice2 !== null ? unitPrice2.toFixed(3) : '-'} บาท</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-ink-200 dark:border-ink-800 space-y-2">
-                    <p className="text-[10px] text-ink-400 dark:text-ink-500">ซื้อจริงแล้ว? กรอกชื่อ+จำนวน แล้วเพิ่มเข้าตะกร้าหรือสต๊อกได้เลย (ใช้ราคาต่อชิ้นจากตัวเลือกที่คุ้มกว่าด้านบน)</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="ชื่อสินค้า"
-                        value={calcItemName}
-                        onChange={(e) => setCalcItemName(e.target.value)}
-                        className="flex-1 min-w-0 p-2.5 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-800 dark:text-white text-xs"
-                      />
-                      <input
-                        type="number"
-                        min="1"
-                        value={calcItemQty}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setCalcItemQty(e.target.value)}
-                        className="w-16 p-2.5 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-800 dark:text-white text-xs font-bold text-center"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={addCalcResultToCart} className="flex-1 bg-honey-600 hover:bg-honey-700 text-white text-xs font-bold py-2.5 rounded-xl active:scale-95 transition flex items-center justify-center gap-1.5">
-                        <ShoppingCart size={14} /> เพิ่มเข้าตะกร้า
-                      </button>
-                      <button onClick={addCalcResultToStock} disabled={calcAdding} className="flex-1 bg-gradient-to-r from-clay-600 to-clay-700 hover:from-clay-500 hover:to-clay-600 disabled:opacity-60 text-white text-xs font-bold py-2.5 rounded-xl active:scale-95 transition flex items-center justify-center gap-1.5">
-                        <Package size={14} /> {calcAdding ? 'กำลังเพิ่ม...' : 'เพิ่มเข้าสต๊อก'}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -1531,8 +1481,8 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
         </div>
       )}
 
-      {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-cream-50/85 dark:bg-ink-900/85 backdrop-blur-xl border-t border-gold-300/50 dark:border-gold-900/40 py-2.5 z-30 shadow-[0_-1px_0_0_rgba(180,137,62,0.15)]">
+      {/* Bottom Navigation Bar (มือถือ/แท็บเล็ต) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-cream-50/85 dark:bg-ink-900/85 backdrop-blur-xl border-t border-gold-300/50 dark:border-gold-900/40 py-2.5 z-30 shadow-[0_-1px_0_0_rgba(180,137,62,0.15)]">
         <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
           <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 transition ${mainTab === 'stock' ? 'text-clay-600 dark:text-clay-400 font-bold scale-105' : 'text-ink-400 dark:text-ink-500'}`}>
             <HomeIcon size={20} /><span>สต๊อกบ้าน</span>
