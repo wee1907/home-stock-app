@@ -77,6 +77,7 @@ export default function Home() {
   useEffect(() => {
     fetchProducts();
     fetchLogs();
+    fetchCustomOptions();
   }, []);
 
   useEffect(() => {
@@ -96,6 +97,24 @@ export default function Home() {
   const purgeOldTrash = async () => {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     await supabase.from('products').delete().lt('deleted_at', twentyFourHoursAgo);
+  };
+
+  // ดึงตัวเลือกที่เซฟไว้ใน Supabase ออกมาแสดง
+  const fetchCustomOptions = async () => {
+    try {
+      const { data } = await supabase.from('custom_options').select('*');
+      if (data && data.length > 0) {
+        const fetchedCats = data.filter(x => x.option_type === 'category').map(x => x.option_value);
+        const fetchedUnits = data.filter(x => x.option_type === 'unit').map(x => x.option_value);
+        const fetchedSizes = data.filter(x => x.option_type === 'size').map(x => x.option_value);
+
+        if (fetchedCats.length > 0) setCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...fetchedCats])));
+        if (fetchedUnits.length > 0) setUnits(Array.from(new Set([...DEFAULT_UNITS, ...fetchedUnits])));
+        if (fetchedSizes.length > 0) setSizes(Array.from(new Set([...DEFAULT_SIZES, ...fetchedSizes])));
+      }
+    } catch (e) {
+      console.log('fetchCustomOptions error:', e.message);
+    }
   };
 
   const fetchProducts = async () => {
@@ -175,7 +194,7 @@ export default function Home() {
     }
   };
 
-const compressImage = (file, maxWidth = 500, quality = 0.6) => {
+  const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -522,21 +541,42 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     fetchProductLogs(product.id);
   };
 
-  const handleAddCustomOption = () => {
+  // บันทึกตัวเลือกใหม่ลง Supabase ถาวร
+  const handleAddCustomOption = async () => {
     const val = newOptionInput.value.trim();
+    const type = manageOptionType;
     if (!val) return;
-    if (manageOptionType === 'category' && !categories.includes(val)) setCategories([...categories, val]);
-    if (manageOptionType === 'unit' && !units.includes(val)) setUnits([...units, val]);
-    if (manageOptionType === 'size' && !sizes.includes(val)) setSizes([...sizes, val]);
+
+    const { error } = await supabase.from('custom_options').insert([{
+      option_type: type,
+      option_value: val
+    }]);
+
+    if (error) {
+      showToast(`⚠️ เพิ่มตัวเลือกไม่สำเร็จ: ${error.message}`, 'error');
+      return;
+    }
+
+    if (type === 'category' && !categories.includes(val)) setCategories([...categories, val]);
+    if (type === 'unit' && !units.includes(val)) setUnits([...units, val]);
+    if (type === 'size' && !sizes.includes(val)) setSizes([...sizes, val]);
+
     setNewOptionInput({ ...newOptionInput, value: '' });
-    showToast('✅ เพิ่มตัวเลือกเรียบร้อย');
+    showToast('✅ เพิ่มตัวเลือกเซฟลงฐานข้อมูลเรียบร้อย');
   };
 
+  // อัปเดตการแก้ไขตัวเลือกใน Supabase
   const handleEditCustomOption = async (type, oldVal) => {
     const newVal = prompt(`แก้ไขชื่อ${type === 'category' ? 'หมวดหมู่' : type === 'size' ? 'ขนาด' : 'หน่วยนับ'} "${oldVal}" เป็น:`, oldVal);
     if (!newVal || newVal.trim() === '' || newVal === oldVal) return;
 
     const trimmed = newVal.trim();
+
+    await supabase.from('custom_options')
+      .update({ option_value: trimmed })
+      .eq('option_type', type)
+      .eq('option_value', oldVal);
+
     if (type === 'category') {
       setCategories(categories.map(c => c === oldVal ? trimmed : c));
       await supabase.from('products').update({ category: trimmed }).eq('category', oldVal);
@@ -551,8 +591,14 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     showToast('🎉 แก้ไขชื่อเรียบร้อยแล้ว');
   };
 
+  // ลบตัวเลือกออกจาก Supabase
   const handleDeleteCustomOption = async (type, itemToDelete) => {
     if (confirm(`คุณต้องการลบ "${itemToDelete}" ออกจากรายการตัวเลือกใช่ไหม?`)) {
+      await supabase.from('custom_options')
+        .delete()
+        .eq('option_type', type)
+        .eq('option_value', itemToDelete);
+
       if (type === 'category') {
         if (itemToDelete === 'ทั้งหมด' || itemToDelete === 'อื่นๆ') return alert('ไม่สามารถลบหมวดหมู่นี้ได้');
         setCategories(categories.filter(c => c !== itemToDelete));
@@ -1043,7 +1089,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                   <form onSubmit={handleCartCommand} className="relative flex items-center">
                     <input
                       type="text"
-                      placeholder="✨ พิมพ์ให้ AI ใส่ตะกร้า เช่น 'ยาหม่อง 2 ขวด ขวดละ 20 บาท' หรือ 'แก้ราคานมข้นหวานเป็น 20'"
+                      placeholder="✨ พิมพ์ให้ AI ใส่ตะกร้า เช่น 'นมข้นหวาน 25 บาท' หรือ 'แก้ราคานมข้นหวานเป็น 20'"
                       value={cartCmd}
                       onChange={(e) => setCartCmd(e.target.value)}
                       className="w-full bg-honey-50 dark:bg-honey-950/20 border border-honey-300/70 dark:border-honey-900/50 rounded-xl py-2.5 pl-3 pr-20 text-xs focus:ring-2 focus:ring-honey-400/40 focus:border-honey-500 focus:outline-none dark:text-ink-100 dark:placeholder-ink-500"
@@ -1390,7 +1436,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                   <input type="number" value={formData.quantity} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })} className="w-full p-2.5 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-800 dark:text-white font-bold" />
                 </div>
                 <div>
-                  <label className="block font-medium text-ink-500 dark:text-ink-400 mb-0.5">เกณฑ์เตือนขั้นต่ำ</label>
+                  <label className="block font-medium text-slate-500 dark:text-zinc-400 mb-0.5">เกณฑ์เตือนขั้นต่ำ</label>
                   <input type="number" value={formData.min_threshold} onFocus={(e) => e.target.select()} onChange={(e) => setFormData({ ...formData, min_threshold: parseInt(e.target.value) || 1 })} className="w-full p-2.5 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-800 dark:text-white" />
                 </div>
               </div>
@@ -1481,7 +1527,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
         </div>
       )}
 
-      {/* Bottom Navigation Bar (มือถือ/แท็บเล็ต) */}
+      {/* Bottom Navigation Bar */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-cream-50/85 dark:bg-ink-900/85 backdrop-blur-xl border-t border-gold-300/50 dark:border-gold-900/40 py-2.5 z-30 shadow-[0_-1px_0_0_rgba(180,137,62,0.15)]">
         <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
           <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 transition ${mainTab === 'stock' ? 'text-clay-600 dark:text-clay-400 font-bold scale-105' : 'text-ink-400 dark:text-ink-500'}`}>
