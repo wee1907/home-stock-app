@@ -66,6 +66,9 @@ export default function Home() {
 
   // Temporary Price Compare Calculator State
   const [tempCalc, setTempCalc] = useState({ p1: '', v1: '', p2: '', v2: '' });
+  const [calcItemName, setCalcItemName] = useState('');
+  const [calcItemQty, setCalcItemQty] = useState(1);
+  const [calcAdding, setCalcAdding] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -363,6 +366,64 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     }
   };
 
+  const getCalcChosenOption = () => {
+    // ใช้ตัวเลือกที่คุ้มกว่าถ้าเทียบได้ทั้งคู่ ไม่งั้นใช้ตัวไหนก็ตามที่กรอกราคาไว้
+    if (cheaperOption === 1) return { price: parseFloat(tempCalc.p1) || 0 };
+    if (cheaperOption === 2) return { price: parseFloat(tempCalc.p2) || 0 };
+    if (tempCalc.p1) return { price: parseFloat(tempCalc.p1) || 0 };
+    if (tempCalc.p2) return { price: parseFloat(tempCalc.p2) || 0 };
+    return null;
+  };
+
+  const addCalcResultToCart = () => {
+    const chosen = getCalcChosenOption();
+    if (!chosen || !chosen.price) return showToast('กรุณากรอกราคาในเครื่องคิดเลขก่อน', 'error');
+    const qty = Math.max(1, parseInt(calcItemQty) || 1);
+    const name = calcItemName.trim() || 'สินค้าทดลองคำนวณ';
+    setCartItems(prev => [...prev, { id: Date.now(), name, price: chosen.price * qty }]);
+    showToast(`🛒 เพิ่ม "${name}" x${qty} เข้าตะกร้าเรียบร้อย`);
+  };
+
+  const addCalcResultToStock = async () => {
+    const chosen = getCalcChosenOption();
+    if (!chosen || !chosen.price) return showToast('กรุณากรอกราคาในเครื่องคิดเลขก่อน', 'error');
+    if (!calcItemName.trim()) return showToast('กรุณากรอกชื่อสินค้าก่อนเพิ่มเข้าสต๊อก', 'error');
+
+    setCalcAdding(true);
+    try {
+      const qty = Math.max(1, parseInt(calcItemQty) || 1);
+      const name = calcItemName.trim();
+      const existing = products.find(p => p.name.includes(name) || name.includes(p.name));
+
+      if (existing) {
+        const newQty = existing.quantity + qty;
+        const { error } = await supabase.from('products').update({ quantity: newQty, price: chosen.price }).eq('id', existing.id);
+        if (error) return showToast(`⚠️ เพิ่มสต๊อกไม่สำเร็จ: ${error.message}`, 'error');
+        setProducts(prev => prev.map(p => p.id === existing.id ? { ...p, quantity: newQty, price: chosen.price } : p));
+        logAction(existing.id, existing.name, 'ADD', qty);
+        showToast(`📦 เติม "${existing.name}" +${qty} ${existing.unit} เข้าสต๊อกเดิมเรียบร้อย`);
+      } else {
+        const newItem = {
+          name, brand: '', category: 'อื่นๆ', unit: 'ชิ้น', size: 'กลาง',
+          volume: '', quantity: qty, min_threshold: 1, price: chosen.price, store: ''
+        };
+        const { data, error } = await supabase.from('products').insert([newItem]).select();
+        if (error) return showToast(`⚠️ เพิ่มสต๊อกไม่สำเร็จ: ${error.message}`, 'error');
+        if (data) {
+          setProducts(prev => [data[0], ...prev]);
+          logAction(data[0].id, data[0].name, 'CREATE', data[0].quantity);
+          showToast(`📦 เพิ่ม "${name}" เป็นรายการสต๊อกใหม่เรียบร้อย`);
+        }
+      }
+      setCalcItemName('');
+      setCalcItemQty(1);
+    } catch (err) {
+      showToast(`⚠️ เกิดข้อผิดพลาด: ${err.message}`, 'error');
+    } finally {
+      setCalcAdding(false);
+    }
+  };
+
   const updateQuantity = async (id, newQty, productName = '') => {
     const finalQty = isNaN(newQty) ? 0 : Math.max(0, newQty);
     const p = products.find(x => x.id === id);
@@ -642,7 +703,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
       
       {/* Toast Notification */}
       {toast.show && (
-        <div className="fixed bottom-20 left-1/2 -tranink-x-1/2 z-50 bg-ink-900/90 dark:bg-ink-100/90 text-white dark:text-ink-900 border border-ink-700/50 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs animate-in fade-in slide-in-from-bottom duration-200">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-ink-900/90 dark:bg-ink-100/90 text-white dark:text-ink-900 border border-ink-700/50 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-xs animate-in fade-in slide-in-from-bottom duration-200">
           <Check size={16} className="text-clay-400 dark:text-clay-600" />
           <span className="font-semibold">{toast.message}</span>
           <button onClick={() => setToast({ show: false, message: '', type: 'success' })} className="ml-2 text-ink-400 hover:text-white dark:hover:text-ink-900"><X size={14} /></button>
@@ -650,7 +711,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/80 dark:bg-ink-900/80 backdrop-blur-xl border-b border-ink-200/80 dark:border-ink-800/80 px-4 py-3 shadow-xs">
+      <header className="sticky top-0 z-30 bg-cream-50/85 dark:bg-ink-900/85 backdrop-blur-xl border-b border-gold-300/50 dark:border-gold-900/40 px-4 py-3 shadow-[0_1px_0_0_rgba(180,137,62,0.15)]">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-clay-500/10 dark:bg-clay-400/10 rounded-2xl flex items-center justify-center text-xl border border-clay-500/20">🏡</div>
@@ -667,7 +728,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
             <button onClick={() => setShowSettingsModal(true)} className="p-2.5 rounded-2xl bg-ink-100 dark:bg-ink-800 text-ink-600 dark:text-ink-300 hover:scale-105 active:scale-95 transition">
               <Settings size={17} />
             </button>
-            <button onClick={() => openAddModal()} className="bg-clay-600 hover:bg-clay-500 text-white text-xs font-semibold px-4 py-2.5 rounded-2xl flex items-center gap-1.5 shadow-md shadow-clay-600/20 active:scale-95 transition">
+            <button onClick={() => openAddModal()} className="bg-gradient-to-r from-clay-600 to-clay-700 hover:from-clay-500 hover:to-clay-600 text-white text-xs font-semibold px-4 py-2.5 rounded-2xl flex items-center gap-1.5 shadow-lg shadow-clay-900/25 ring-1 ring-gold-300/40 active:scale-95 transition">
               <Plus size={16} /> <span className="hidden sm:inline">เพิ่มของเข้าบ้าน</span>
             </button>
           </div>
@@ -690,7 +751,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                   placeholder="💬 พิมพ์แชทสั่ง เช่น 'ใช้น้ำยาล้างจาน 1 ถุง' หรือ 'เพิ่มสายชาร์จ 2 เมตร 150 บาท'..."
                   value={quickCmd}
                   onChange={(e) => setQuickCmd(e.target.value)}
-                  className="w-full bg-white/80 dark:bg-ink-800/80 border border-ink-200 dark:border-ink-700/60 rounded-2xl py-3 pl-4 pr-24 text-xs focus:ring-2 focus:ring-clay-500/30 focus:border-clay-500 focus:outline-none dark:text-ink-100 dark:placeholder-ink-500 shadow-inner"
+                  className="w-full bg-cream-50/85 dark:bg-ink-800/80 border border-ink-200 dark:border-ink-700/60 rounded-2xl py-3 pl-4 pr-24 text-xs focus:ring-2 focus:ring-clay-500/30 focus:border-clay-500 focus:outline-none dark:text-ink-100 dark:placeholder-ink-500 shadow-inner"
                 />
                 <button type="submit" disabled={cmdProcessing} className="absolute right-1.5 bg-ink-900 dark:bg-clay-600 hover:bg-ink-800 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-xs transition active:scale-95 disabled:opacity-70">
                   {cmdProcessing ? 'กำลังสั่ง...' : 'สั่งงาน'}
@@ -938,11 +999,25 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
 
             {priceSubTab === 'system' ? (
               <div className="space-y-4">
-                <div className="bg-gradient-to-r from-clay-500/10 via-sage-500/10 to-transparent border border-clay-500/20 dark:border-clay-900/40 p-5 rounded-3xl flex justify-between items-center shadow-xs">
-                  <div>
-                    <p className="text-xs text-clay-700 dark:text-clay-400 font-semibold">🛒 ยอดเงินรวมต้องเตรียมไปซื้อของ (ของใกล้หมด):</p>
-                    <p className="text-3xl font-extrabold text-clay-800 dark:text-clay-300 mt-1 font-mono">{totalBudgetNeeded.toLocaleString()} <span className="text-base font-normal">บาท</span></p>
-                  </div>
+                <div className="bg-gradient-to-r from-clay-500/10 via-sage-500/10 to-transparent border border-clay-500/20 dark:border-clay-900/40 p-5 rounded-3xl shadow-xs">
+                  <p className="text-xs text-clay-700 dark:text-clay-400 font-semibold">🛒 ยอดเงินรวมต้องเตรียมไปซื้อของ (ของใกล้หมด):</p>
+                  <p className="text-3xl font-extrabold text-clay-800 dark:text-clay-300 mt-1 font-mono">{totalBudgetNeeded.toLocaleString()} <span className="text-base font-normal">บาท</span></p>
+
+                  {lowStockItems.length > 0 ? (
+                    <div className="mt-3 pt-3 border-t border-clay-500/20 dark:border-clay-900/40 space-y-1.5">
+                      {lowStockItems.map(item => {
+                        const needToBuy = Math.max(1, item.min_threshold - item.quantity + 1);
+                        return (
+                          <div key={item.id} className="flex justify-between items-center text-xs">
+                            <span className="text-ink-700 dark:text-ink-200 truncate pr-2">⚠️ {item.name} <span className="text-ink-400">(เหลือ {item.quantity} {item.unit})</span></span>
+                            <span className="font-mono font-bold text-clay-700 dark:text-clay-300 flex-shrink-0">+{needToBuy} {item.unit} • {(needToBuy * (item.price || 0)).toLocaleString()} บ.</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-3 pt-3 border-t border-clay-500/20 dark:border-clay-900/40 text-xs text-sage-600 dark:text-sage-400">✅ ของยังไม่ใกล้หมดสักรายการ ไม่ต้องซื้อเพิ่มตอนนี้</p>
+                  )}
                 </div>
 
                 <div className="bg-cream-50 dark:bg-ink-900 border border-ink-200 dark:border-ink-800 rounded-3xl p-4 space-y-3 shadow-xs">
@@ -1054,6 +1129,35 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                       <input type="number" placeholder="ราคา (บาท)" value={tempCalc.p2} onChange={(e) => setTempCalc({ ...tempCalc, p2: e.target.value })} className="w-full p-2 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-900 dark:text-white text-xs" />
                       <input type="number" placeholder="ปริมาณ (ml/กรัม)" value={tempCalc.v2} onChange={(e) => setTempCalc({ ...tempCalc, v2: e.target.value })} className="w-full p-2 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-900 dark:text-white text-xs" />
                       <p className="text-xs font-extrabold pt-1 dark:text-ink-200 font-mono">ตกหน่วยละ: {unitPrice2 !== null ? unitPrice2.toFixed(3) : '-'} บาท</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-ink-200 dark:border-ink-800 space-y-2">
+                    <p className="text-[10px] text-ink-400 dark:text-ink-500">ซื้อจริงแล้ว? กรอกชื่อ+จำนวน แล้วเพิ่มเข้าตะกร้าหรือสต๊อกได้เลย (ใช้ราคาต่อชิ้นจากตัวเลือกที่คุ้มกว่าด้านบน)</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="ชื่อสินค้า"
+                        value={calcItemName}
+                        onChange={(e) => setCalcItemName(e.target.value)}
+                        className="flex-1 min-w-0 p-2.5 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-800 dark:text-white text-xs"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        value={calcItemQty}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setCalcItemQty(e.target.value)}
+                        className="w-16 p-2.5 rounded-xl border border-ink-200 dark:border-ink-700 dark:bg-ink-800 dark:text-white text-xs font-bold text-center"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={addCalcResultToCart} className="flex-1 bg-honey-600 hover:bg-honey-700 text-white text-xs font-bold py-2.5 rounded-xl active:scale-95 transition flex items-center justify-center gap-1.5">
+                        <ShoppingCart size={14} /> เพิ่มเข้าตะกร้า
+                      </button>
+                      <button onClick={addCalcResultToStock} disabled={calcAdding} className="flex-1 bg-gradient-to-r from-clay-600 to-clay-700 hover:from-clay-500 hover:to-clay-600 disabled:opacity-60 text-white text-xs font-bold py-2.5 rounded-xl active:scale-95 transition flex items-center justify-center gap-1.5">
+                        <Package size={14} /> {calcAdding ? 'กำลังเพิ่ม...' : 'เพิ่มเข้าสต๊อก'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1394,7 +1498,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
       )}
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-ink-900/80 backdrop-blur-xl border-t border-ink-200/80 dark:border-ink-800/80 py-2.5 z-30 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 bg-cream-50/85 dark:bg-ink-900/85 backdrop-blur-xl border-t border-gold-300/50 dark:border-gold-900/40 py-2.5 z-30 shadow-[0_-1px_0_0_rgba(180,137,62,0.15)]">
         <div className="max-w-md mx-auto flex justify-around items-center text-[10px]">
           <button onClick={() => setMainTab('stock')} className={`flex flex-col items-center gap-1 transition ${mainTab === 'stock' ? 'text-clay-600 dark:text-clay-400 font-bold scale-105' : 'text-ink-400 dark:text-ink-500'}`}>
             <HomeIcon size={20} /><span>สต๊อกบ้าน</span>
