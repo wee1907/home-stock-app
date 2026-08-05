@@ -63,6 +63,7 @@ export default function Home() {
   const [cartPrice, setCartPrice] = useState('');
   const [cartCmd, setCartCmd] = useState('');
   const [cartCmdProcessing, setCartCmdProcessing] = useState(false);
+  const [cartAddingId, setCartAddingId] = useState(null);
 
   // Temporary Price Compare Calculator State
   const [tempCalc, setTempCalc] = useState({ p1: '', v1: '', p2: '', v2: '' });
@@ -123,6 +124,7 @@ export default function Home() {
   const logAction = async (productId, productName, actionType, qtyChanged) => {
     await supabase.from('usage_logs').insert([{
       product_id: productId,
+      product_name: productName || '',
       action_type: actionType,
       quantity_changed: qtyChanged,
       created_at: new Date().toISOString()
@@ -347,11 +349,11 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
               workingCart[idx] = { ...workingCart[idx], price };
               msg.push(`แก้ "${workingCart[idx].name}" เป็น ${price} บาท`);
             } else {
-              workingCart.push({ id: Date.now() + Math.random(), name, price });
+              workingCart.push({ id: Date.now() + Math.random(), name, price, qty: 1 });
               msg.push(`เพิ่ม "${name}" ${price} บาท`);
             }
           } else {
-            workingCart.push({ id: Date.now() + Math.random(), name, price });
+            workingCart.push({ id: Date.now() + Math.random(), name, price, qty: 1 });
             msg.push(`เพิ่ม "${name}" ${price} บาท`);
           }
         }
@@ -384,44 +386,55 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
     showToast(`🛒 เพิ่ม "${name}" x${qty} เข้าตะกร้าเรียบร้อย`);
   };
 
-  const addCalcResultToStock = async () => {
-    const chosen = getCalcChosenOption();
-    if (!chosen || !chosen.price) return showToast('กรุณากรอกราคาในเครื่องคิดเลขก่อน', 'error');
-    if (!calcItemName.trim()) return showToast('กรุณากรอกชื่อสินค้าก่อนเพิ่มเข้าสต๊อก', 'error');
-
-    setCalcAdding(true);
+  const upsertProductToStock = async (name, qty, price) => {
     try {
-      const qty = Math.max(1, parseInt(calcItemQty) || 1);
-      const name = calcItemName.trim();
       const existing = products.find(p => p.name.includes(name) || name.includes(p.name));
-
       if (existing) {
         const newQty = existing.quantity + qty;
-        const { error } = await supabase.from('products').update({ quantity: newQty, price: chosen.price }).eq('id', existing.id);
-        if (error) return showToast(`⚠️ เพิ่มสต๊อกไม่สำเร็จ: ${error.message}`, 'error');
-        setProducts(prev => prev.map(p => p.id === existing.id ? { ...p, quantity: newQty, price: chosen.price } : p));
+        const { error } = await supabase.from('products').update({ quantity: newQty, price }).eq('id', existing.id);
+        if (error) { showToast(`⚠️ เพิ่มสต๊อกไม่สำเร็จ: ${error.message}`, 'error'); return false; }
+        setProducts(prev => prev.map(p => p.id === existing.id ? { ...p, quantity: newQty, price } : p));
         logAction(existing.id, existing.name, 'ADD', qty);
         showToast(`📦 เติม "${existing.name}" +${qty} ${existing.unit} เข้าสต๊อกเดิมเรียบร้อย`);
       } else {
         const newItem = {
           name, brand: '', category: 'อื่นๆ', unit: 'ชิ้น', size: 'กลาง',
-          volume: '', quantity: qty, min_threshold: 1, price: chosen.price, store: ''
+          volume: '', quantity: qty, min_threshold: 1, price, store: ''
         };
         const { data, error } = await supabase.from('products').insert([newItem]).select();
-        if (error) return showToast(`⚠️ เพิ่มสต๊อกไม่สำเร็จ: ${error.message}`, 'error');
+        if (error) { showToast(`⚠️ เพิ่มสต๊อกไม่สำเร็จ: ${error.message}`, 'error'); return false; }
         if (data) {
           setProducts(prev => [data[0], ...prev]);
           logAction(data[0].id, data[0].name, 'CREATE', data[0].quantity);
           showToast(`📦 เพิ่ม "${name}" เป็นรายการสต๊อกใหม่เรียบร้อย`);
         }
       }
-      setCalcItemName('');
-      setCalcItemQty(1);
+      return true;
     } catch (err) {
       showToast(`⚠️ เกิดข้อผิดพลาด: ${err.message}`, 'error');
-    } finally {
-      setCalcAdding(false);
+      return false;
     }
+  };
+
+  const addCalcResultToStock = async () => {
+    const chosen = getCalcChosenOption();
+    if (!chosen || !chosen.price) return showToast('กรุณากรอกราคาในเครื่องคิดเลขก่อน', 'error');
+    if (!calcItemName.trim()) return showToast('กรุณากรอกชื่อสินค้าก่อนเพิ่มเข้าสต๊อก', 'error');
+
+    setCalcAdding(true);
+    const qty = Math.max(1, parseInt(calcItemQty) || 1);
+    const name = calcItemName.trim();
+    const ok = await upsertProductToStock(name, qty, chosen.price);
+    if (ok) { setCalcItemName(''); setCalcItemQty(1); }
+    setCalcAdding(false);
+  };
+
+  const addCartItemToStock = async (item) => {
+    if (!item.name || !item.name.trim()) return showToast('รายการนี้ยังไม่มีชื่อสินค้า', 'error');
+    setCartAddingId(item.id);
+    const qty = Math.max(1, parseInt(item.qty) || 1);
+    await upsertProductToStock(item.name.trim(), qty, item.price);
+    setCartAddingId(null);
   };
 
   const updateQuantity = async (id, newQty, productName = '') => {
@@ -713,13 +726,13 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-cream-50/85 dark:bg-ink-900/85 backdrop-blur-xl border-b border-gold-300/50 dark:border-gold-900/40 px-4 py-3 shadow-[0_1px_0_0_rgba(180,137,62,0.15)]">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2.5">
+          <button onClick={() => setMainTab('stock')} className="flex items-center gap-2.5 active:scale-95 transition text-left">
             <div className="w-9 h-9 bg-clay-500/10 dark:bg-clay-400/10 rounded-2xl flex items-center justify-center text-xl border border-clay-500/20">🏡</div>
             <div>
               <h1 className="font-display font-bold text-base tracking-tight bg-gradient-to-r from-clay-600 via-clay-500 to-honey-500 dark:from-clay-400 dark:to-honey-300 bg-clip-text text-transparent">Home Stock</h1>
               <p className="text-[10px] text-ink-400 dark:text-ink-500 font-medium">จัดการของใช้ในบ้านอัจฉริยะ</p>
             </div>
-          </div>
+          </button>
 
           <div className="flex items-center gap-2">
             <button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-2xl bg-ink-100 dark:bg-ink-800 text-ink-600 dark:text-ink-300 hover:scale-105 active:scale-95 transition">
@@ -1046,6 +1059,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                     <ShoppingCart size={16} className="text-clay-600 dark:text-clay-400" />
                     <span>🛒 ตะกร้าคำนวณเงินสด (เช็กยอดเงินขณะเดินหยิบของ)</span>
                   </h4>
+                  <p className="text-[10px] text-ink-400 dark:text-ink-500 -mt-2">ใส่จำนวน (x) แต่ละรายการ แล้วกด <Package size={10} className="inline text-clay-500" /> เพื่อเพิ่มรายการนั้นเข้าสต๊อกบ้านได้เลย</p>
                   
                   <form onSubmit={handleCartCommand} className="relative flex items-center">
                     <input
@@ -1084,7 +1098,7 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                       />
                       <button onClick={() => {
                         if (!cartPrice) return;
-                        setCartItems([...cartItems, { id: Date.now(), name: cartName || 'สินค้าทั่วไป', price: parseFloat(cartPrice) }]);
+                        setCartItems([...cartItems, { id: Date.now(), name: cartName || 'สินค้าทั่วไป', price: parseFloat(cartPrice), qty: 1 }]);
                         setCartName(''); setCartPrice('');
                       }} className="w-1/2 sm:w-auto bg-clay-600 text-white text-xs px-4 py-2.5 rounded-xl font-bold active:scale-95 transition whitespace-nowrap">+ ใส่ตะกร้า</button>
                     </div>
@@ -1092,10 +1106,29 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
 
                   <div className="space-y-1.5 pt-2 border-t border-ink-100 dark:border-ink-800">
                     {cartItems.map(item => (
-                      <div key={item.id} className="flex justify-between items-center bg-ink-50 dark:bg-ink-800/80 p-2 rounded-xl text-xs dark:text-ink-200">
-                        <span className="truncate pr-2">{item.name}</span>
-                        <div className="flex items-center gap-3 font-bold flex-shrink-0">
+                      <div key={item.id} className="flex justify-between items-center bg-ink-50 dark:bg-ink-800/80 p-2 rounded-xl text-xs dark:text-ink-200 gap-2">
+                        <span className="truncate flex-1 min-w-0">{item.name}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-[10px] text-ink-400">x</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.qty || 1}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => setCartItems(cartItems.map(x => x.id === item.id ? { ...x, qty: parseInt(e.target.value) || 1 } : x))}
+                            className="w-10 text-center bg-cream-50 dark:bg-ink-900 border border-ink-200 dark:border-ink-700 rounded-lg py-0.5 font-bold"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 font-bold flex-shrink-0">
                           <span className="font-mono">{item.price} บาท</span>
+                          <button
+                            onClick={() => addCartItemToStock(item)}
+                            disabled={cartAddingId === item.id}
+                            title="เพิ่มรายการนี้เข้าสต๊อกบ้าน"
+                            className="text-clay-600 dark:text-clay-400 hover:text-clay-800 disabled:opacity-40 p-1"
+                          >
+                            <Package size={14} />
+                          </button>
                           <button onClick={() => setCartItems(cartItems.filter(x => x.id !== item.id))} className="text-red-500 font-bold px-1">✕</button>
                         </div>
                       </div>
@@ -1214,7 +1247,8 @@ const compressImage = (file, maxWidth = 500, quality = 0.6) => {
                       {log.action_type === 'DEDUCT' ? '-' : '+'}{log.quantity_changed}
                     </span>
                     <div>
-                      <p className="font-bold text-ink-800 dark:text-ink-100">{log.action_type === 'DEDUCT' ? 'นำออกไปใช้' : 'เติมของเข้าบ้าน'} ({log.quantity_changed} ชิ้น)</p>
+                      <p className="font-bold text-ink-800 dark:text-ink-100">{log.product_name ? log.product_name : (log.action_type === 'DEDUCT' ? 'นำออกไปใช้' : 'เติมของเข้าบ้าน')}</p>
+                      <p className="text-[10px] text-ink-500 dark:text-ink-400">{log.action_type === 'DEDUCT' ? 'นำออกไปใช้' : 'เติมของเข้าบ้าน'} {log.quantity_changed} ชิ้น</p>
                       <p className="text-[10px] text-ink-400 dark:text-ink-500">{new Date(log.created_at).toLocaleString('th-TH')}</p>
                     </div>
                   </div>
